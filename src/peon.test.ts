@@ -47,6 +47,14 @@ describe('resolveExecutable', () => {
     expect(resolveExecutable('peon')).toBe(peonPath)
   })
 
+  it('ignores empty values in path', async () => {
+    const tempDirectory = await createAndTrackTempDir()
+    process.env.PATH = `${delimiter}${tempDirectory.path}${delimiter}${delimiter}${delimiter}`
+    const peonPath = await createExecutable(tempDirectory.path, 'peon')
+
+    expect(resolveExecutable('peon')).toBe(peonPath)
+  })
+
   it('returns undefined for a name not on PATH', async () => {
     const tempDirectory = await createAndTrackTempDir()
     process.env.PATH = tempDirectory.path
@@ -54,7 +62,21 @@ describe('resolveExecutable', () => {
     expect(resolveExecutable('peon')).toBeUndefined()
   })
 
+  it('returns undefined when path is not set', () => {
+    delete process.env.PATH
+
+    expect(resolveExecutable('peon')).toBeUndefined()
+  })
+
   it('resolves an absolute executable', async () => {
+    const tempDirectory = await createAndTrackTempDir()
+    const peonPath = await createExecutable(tempDirectory.path, 'peon')
+
+    expect(resolveExecutable(peonPath)).toBe(peonPath)
+  })
+
+  it('resolves an absolute executable even if PATH is not set', async () => {
+    delete process.env.PATH
     const tempDirectory = await createAndTrackTempDir()
     const peonPath = await createExecutable(tempDirectory.path, 'peon')
 
@@ -125,16 +147,24 @@ describe('createPeonSink', () => {
     expect(spawn).toHaveBeenCalledWith('/bin/peon', [], { stdio: ['pipe', 'pipe', 'pipe'] })
   })
 
-  it('does not kill child after close clears timeout', () => {
-    const child = makeChildProcess()
-    vi.mocked(spawn).mockReturnValue(child.process)
-    const peon = createPeonSink('/bin/peon')
+  describe('does not kill child after close clears timeout for', () => {
+    type TestCase = { code: number | null | undefined; signal: string | null | undefined }
+    it.each([
+      { code: undefined, signal: undefined },
+      { code: null, signal: null },
+      { code: 0, signal: 'SIGTERM' },
+      { code: 1, signal: 'SIGTERM' },
+    ] satisfies TestCase[])('%j', ({ code, signal }) => {
+      const child = makeChildProcess()
+      vi.mocked(spawn).mockReturnValue(child.process)
+      const peon = createPeonSink('/bin/peon')
 
-    peon.send(payload)
-    child.emit('close')
-    vi.advanceTimersByTime(5000)
+      peon.send(payload)
+      child.emit('close', code, signal)
+      vi.advanceTimersByTime(5000)
 
-    expect(child.kill).not.toHaveBeenCalled()
+      expect(child.kill).not.toHaveBeenCalled()
+    })
   })
 
   it('does not kill child after error clears timeout', () => {

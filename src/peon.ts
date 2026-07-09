@@ -26,7 +26,9 @@ export function resolveExecutable(name: string): string | undefined {
 
   const pathEnv = process.env.PATH ?? ''
   for (const dir of pathEnv.split(delimiter)) {
-    if (!dir) continue
+    if (!dir) {
+      continue
+    }
     const candidate = join(dir, name)
     if (canExecute(candidate)) return candidate
   }
@@ -77,14 +79,14 @@ function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
 
   child.on('close', (code, signal) => {
     clearTimeout(timeout)
-    if (code === 0 && !signal) {
+    if (code === 0) {
       // don't log successful exits
       return
     }
     logPeonEvent('info', peonPath, payload, {
       decision: 'child_close',
-      code: typeof code === 'number' ? code : undefined,
-      signal: typeof signal === 'string' ? signal : undefined,
+      code,
+      signal,
     })
   })
 
