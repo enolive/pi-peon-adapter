@@ -27,26 +27,6 @@ export interface PeonSink {
   send(payload: HookPayload): void
 }
 
-function sessionIdFor(ctx: ExtensionContext): string {
-  const file = ctx.sessionManager?.getSessionFile?.()
-  const candidate = file
-    ?.split('/')
-    ?.pop()
-    ?.replace(/\.[^.]+$/, '')
-  if (candidate) {
-    return `pi-${candidate}`
-  }
-  return `pi-${randomUUID()}`
-}
-
-function basePayload(ctx: ExtensionContext, hook_event_name: HookEvent): HookPayload {
-  return {
-    hook_event_name,
-    session_id: sessionIdFor(ctx),
-    cwd: ctx.cwd,
-  }
-}
-
 export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink): void {
   pi.on('session_start', (event, ctx) => {
     logReceived(event, ctx, { reason: event.reason, has_ui: ctx.hasUI })
@@ -106,6 +86,26 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink)
     const payload = basePayload(ctx, 'SessionEnd')
     peon.send(payload)
   })
+}
+
+function sessionIdFor(ctx: ExtensionContext): string {
+  const file = ctx.sessionManager?.getSessionFile?.()
+  const candidate = file
+    ?.split('/')
+    ?.pop()
+    ?.replace(/\.[^.]+$/, '')
+  if (candidate) {
+    return `pi-${candidate}`
+  }
+  return `pi-${randomUUID()}`
+}
+
+function basePayload(ctx: ExtensionContext, hook_event_name: HookEvent): HookPayload {
+  return {
+    hook_event_name,
+    session_id: sessionIdFor(ctx),
+    cwd: ctx.cwd,
+  }
 }
 
 function logEvent(hook: string, fields: Record<string, DebugLogValue>): void {
