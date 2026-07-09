@@ -17,32 +17,11 @@
  * Override the binary with the PEON_BIN env var (default: `peon` on PATH).
  */
 
-import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
 import { accessSync, constants as fsConstants } from 'node:fs';
 import { delimiter, isAbsolute, join } from 'node:path';
-
-type HookEvent =
-  | 'SessionStart'
-  | 'UserPromptSubmit'
-  | 'Stop'
-  | 'PermissionRequest'
-  | 'PostToolUseFailure'
-  | 'PreCompact'
-  | 'SessionEnd';
-
-interface HookPayload {
-  hook_event_name: HookEvent;
-  session_id: string;
-  cwd: string;
-  source?: string;
-  tool_name?: string;
-  error?: string;
-  notification_type?: string;
-
-  [key: string]: unknown;
-}
+import { registerPiHandlers, type HookPayload } from './pi.js';
 
 const PEON_BIN = process.env.PEON_BIN || 'peon';
 
@@ -103,20 +82,6 @@ function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
   child.stdin?.end();
 }
 
-function sessionIdFor(ctx: ExtensionContext): string {
-  const file = ctx.sessionManager?.getSessionFile?.();
-  if (file) {
-    // Stable per-session-file id; peon uses this for spam tracking, etc.
-    return `pi-${
-      file
-        .split('/')
-        .pop()
-        ?.replace(/\.[^.]+$/, '') ?? 'session'
-    }`;
-  }
-  return `pi-${randomUUID()}`;
-}
-
 // noinspection JSUnusedGlobalSymbols
 export default function (pi: ExtensionAPI) {
   const peonPath = resolveExecutable(PEON_BIN);
@@ -127,63 +92,9 @@ export default function (pi: ExtensionAPI) {
     return;
   }
 
-  pi.on('session_start', (event, ctx) => {
-    if (!ctx.hasUI) return;
-    // peon's SessionStart greeting only makes sense for fresh loads.
-    if (event.reason === 'reload' || event.reason === 'fork') return;
-    dispatchPeonEvent(peonPath, {
-      hook_event_name: 'SessionStart',
-      session_id: sessionIdFor(ctx),
-      cwd: ctx.cwd,
-      source: event.reason === 'resume' ? 'resume' : 'startup',
-    });
-  });
-
-  pi.on('before_agent_start', (_event, ctx) => {
-    dispatchPeonEvent(peonPath, {
-      hook_event_name: 'UserPromptSubmit',
-      session_id: sessionIdFor(ctx),
-      cwd: ctx.cwd,
-    });
-  });
-
-  pi.on('agent_end', (_event, ctx) => {
-    dispatchPeonEvent(peonPath, {
-      hook_event_name: 'Stop',
-      session_id: sessionIdFor(ctx),
-      cwd: ctx.cwd,
-    });
-  });
-
-  pi.on('tool_execution_end', (event, ctx) => {
-    if (!event.isError) return;
-    // peon ping won't display anything else anyway.
-    // There is no need to capitalize the tool name, call the executable just to do nothing
-    if (event.toolName !== 'bash') {
-      return;
-    }
-    dispatchPeonEvent(peonPath, {
-      hook_event_name: 'PostToolUseFailure',
-      session_id: sessionIdFor(ctx),
-      cwd: ctx.cwd,
-      tool_name: 'Bash',
-      error: `${event.toolName} failed`,
-    });
-  });
-
-  pi.on('session_before_compact', (_event, ctx) => {
-    dispatchPeonEvent(peonPath, {
-      hook_event_name: 'PreCompact',
-      session_id: sessionIdFor(ctx),
-      cwd: ctx.cwd,
-    });
-  });
-
-  pi.on('session_shutdown', (_event, ctx) => {
-    dispatchPeonEvent(peonPath, {
-      hook_event_name: 'SessionEnd',
-      session_id: sessionIdFor(ctx),
-      cwd: ctx.cwd,
-    });
+  registerPiHandlers(pi, {
+    send(payload) {
+      dispatchPeonEvent(peonPath, payload);
+    },
   });
 }
