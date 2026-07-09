@@ -7,8 +7,6 @@ ifdef::env-github[]
 endif::[]
 :icons: font
 
-:toc:
-
 = pi-peon-adapter
 
 A small pi extension that forwards selected pi lifecycle events to the `peon` executable from the https://www.peonping.com[PeonPing] project.
