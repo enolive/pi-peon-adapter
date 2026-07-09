@@ -6,7 +6,7 @@ export default defineConfig({
     restoreMocks: true,
     clearMocks: true,
     coverage: {
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'json-summary'],
       exclude: ['test/helpers/**', '**/*.test.ts', '**/*.config.ts', 'node_modules/**'],
     },
   },
