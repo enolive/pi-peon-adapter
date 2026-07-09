@@ -1,4 +1,4 @@
-import type { ExtensionContext, SessionBeforeCompactEvent } from '@earendil-works/pi-coding-agent'
+import type { SessionBeforeCompactEvent } from '@earendil-works/pi-coding-agent'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { emit, makeCtx, makePi } from '../test/helpers/fake-pi'
 import { makePeon } from '../test/helpers/fake-peon'
@@ -153,7 +153,7 @@ describe('registerPiHandlers', () => {
     const { handlers, peon } = setup()
     const cwd = '/explicit/project'
 
-    await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, makeCtx({ cwd }))
+    await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, makeCtx(cwd))
 
     expect(peon.send).toHaveBeenCalledWith(expect.objectContaining({ cwd }))
   })
@@ -166,9 +166,7 @@ describe('registerPiHandlers', () => {
       ['readme.md', 'pi-readme'],
     ])('%s -> %s', async (sessionFile, expected) => {
       const { handlers, peon } = setup()
-      const ctx = makeCtx({
-        sessionManager: { getSessionFile: vi.fn(() => sessionFile) },
-      } as unknown as Partial<ExtensionContext>)
+      const ctx = makeCtx('/work/project', sessionFile)
 
       await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
 
@@ -179,9 +177,7 @@ describe('registerPiHandlers', () => {
   describe('uses a pi-prefixed fallback session id when no valid session file exists', () => {
     it.each([undefined, '', '/just/a/path/', '////'])('%s -> %s', async (sessionFile) => {
       const { handlers, peon } = setup()
-      const ctx = makeCtx({
-        sessionManager: { getSessionFile: vi.fn(() => sessionFile) },
-      } as unknown as Partial<ExtensionContext>)
+      const ctx = makeCtx('/work/project', sessionFile)
 
       await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
 
@@ -203,8 +199,10 @@ describe('registerPiHandlers', () => {
 
   it('skips session_start when UI is unavailable', async () => {
     const { handlers, peon } = setup()
+    const ctx = makeCtx()
+    ctx.hasUI = false
 
-    await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, makeCtx({ hasUI: false }))
+    await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, ctx)
 
     expect(peon.send).not.toHaveBeenCalled()
   })
@@ -236,8 +234,5 @@ function setup() {
 }
 
 function ctx(cwd: string, session: string) {
-  return makeCtx({
-    cwd,
-    sessionManager: { getSessionFile: vi.fn(() => `/sessions/${session}.json`) },
-  } as unknown as Partial<ExtensionContext>)
+  return makeCtx(cwd, `/sessions/${session}.json`)
 }

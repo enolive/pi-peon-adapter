@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makePeon } from '../test/helpers/fake-peon'
 import { makePi } from '../test/helpers/fake-pi'
+import extension from './index'
 import * as PeonModule from './peon'
 import * as PiModule from './pi'
 import { PeonSink } from './pi'
@@ -10,6 +11,11 @@ vi.mock('../src/pi')
 
 describe('extension entrypoint control flow', () => {
   const originalPeonBin = process.env.PEON_BIN
+  let warn: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
 
   afterEach(() => {
     if (originalPeonBin === undefined) {
@@ -19,13 +25,12 @@ describe('extension entrypoint control flow', () => {
     }
   })
 
-  it('warns and registers no pi handlers when peon cannot be resolved', async () => {
+  it('warns and registers no pi handlers when peon cannot be resolved', () => {
     process.env.PEON_BIN = 'missing-peon'
-    const { extension, resolveExecutable, createPeonSink, registerPiHandlers } = await loadExtension({
+    const { resolveExecutable, createPeonSink, registerPiHandlers } = loadExtension({
       resolvedPath: undefined,
     })
     const { pi } = makePi()
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     extension(pi)
 
@@ -35,10 +40,10 @@ describe('extension entrypoint control flow', () => {
     expect(registerPiHandlers).not.toHaveBeenCalled()
   })
 
-  it('creates a peon sink and registers pi handlers when peon resolves', async () => {
+  it('creates a peon sink and registers pi handlers when peon resolves', () => {
     process.env.PEON_BIN = 'my-peon'
     const peon = makePeon()
-    const { extension, resolveExecutable, createPeonSink, registerPiHandlers } = await loadExtension({
+    const { resolveExecutable, createPeonSink, registerPiHandlers } = loadExtension({
       resolvedPath: '/usr/bin/peon',
       peon,
     })
@@ -51,25 +56,23 @@ describe('extension entrypoint control flow', () => {
     expect(registerPiHandlers).toHaveBeenCalledWith(pi, peon)
   })
 
-  it('uses peon as the default executable name', async () => {
-    const { extension, resolveExecutable } = await loadExtension({
+  it('uses peon as the default executable name', () => {
+    const { resolveExecutable } = loadExtension({
       resolvedPath: undefined,
     })
     const { pi } = makePi()
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     extension(pi)
 
     expect(resolveExecutable).toHaveBeenCalledWith('peon')
   })
 
-  it('uses PEON_BIN from the environment', async () => {
+  it('uses PEON_BIN from the environment', () => {
     process.env.PEON_BIN = '/custom/peon'
-    const { extension, resolveExecutable } = await loadExtension({
+    const { resolveExecutable } = loadExtension({
       resolvedPath: undefined,
     })
     const { pi } = makePi()
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     extension(pi)
 
@@ -77,17 +80,14 @@ describe('extension entrypoint control flow', () => {
   })
 })
 
-async function loadExtension(options: { resolvedPath?: string; peon?: PeonSink }) {
-  vi.resetModules()
+function loadExtension(options: { resolvedPath?: string; peon?: PeonSink }) {
   const resolveExecutable = vi.mocked(PeonModule.resolveExecutable)
   resolveExecutable.mockReturnValue(options.resolvedPath)
   const createPeonSink = vi.mocked(PeonModule.createPeonSink)
   const peon = options.peon ?? makePeon()
   createPeonSink.mockReturnValue(peon)
   const registerPiHandlers = vi.mocked(PiModule.registerPiHandlers)
-  const { default: extension } = await import('./index')
   return {
-    extension,
     resolveExecutable,
     createPeonSink,
     registerPiHandlers,

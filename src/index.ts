@@ -21,14 +21,13 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { createPeonSink, resolveExecutable } from './peon'
 import { registerPiHandlers } from './pi'
 
-const PEON_BIN = process.env.PEON_BIN || 'peon'
-
 // noinspection JSUnusedGlobalSymbols
 export default function (pi: Pick<ExtensionAPI, 'on'>) {
-  const peonPath = resolveExecutable(PEON_BIN)
+  const peonBin = process.env.PEON_BIN || 'peon'
+  const peonPath = resolveExecutable(peonBin)
   if (!peonPath) {
     console.warn(
-      `peon-ping: \`${PEON_BIN}\` not found on PATH. Install it (https://github.com/PeonPing/peon-ping) or set $PEON_BIN. Extension disabled.`
+      `peon-ping: \`${peonBin}\` not found on PATH. Install it (https://github.com/PeonPing/peon-ping) or set $PEON_BIN. Extension disabled.`
     )
     return
   }

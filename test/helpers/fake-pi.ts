@@ -19,15 +19,15 @@ export function makePi() {
   return { pi, handlers, on }
 }
 
-export function makeCtx(overrides: Partial<ExtensionContext> = {}): ExtensionContext {
+export function makeCtx(cwd = '/work/project', session?: string): ExtensionContext {
+  const sessionFile = arguments.length >= 2 ? session : '/sessions/example-session.json'
   return {
-    cwd: '/work/project',
+    cwd,
     hasUI: true,
     sessionManager: {
-      getSessionFile: vi.fn(() => '/home/me/.pi/sessions/example-session.json'),
+      getSessionFile: vi.fn(() => sessionFile),
     },
-    ...overrides,
-  } as ExtensionContext
+  } as unknown as ExtensionContext
 }
 
 function registeredHandler<TEvent extends EventName>(handlers: HandlerMap, event: TEvent): Handler<TEvent> {

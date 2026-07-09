@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process'
 import type { ChildProcessByStdio } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { chmod, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
 import { PassThrough, type Readable, type Writable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createExecutable } from '../test/helpers/executable'
 import { createTempDirectory, type TempDirectory } from '../test/helpers/temp-directory'
 import type { HookPayload } from './pi'
 import { createPeonSink, resolveExecutable } from './peon'
@@ -87,12 +88,6 @@ describe('resolveExecutable', () => {
     return tempDirectory
   }
 
-  async function createExecutable(dir: string, name: string): Promise<string> {
-    const path = join(dir, name)
-    await writeFile(path, '#!/bin/sh\n')
-    await chmod(path, 0o755)
-    return path
-  }
 })
 
 describe('createPeonSink', () => {

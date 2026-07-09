@@ -1,13 +1,10 @@
-import { chmod, readFile, writeFile } from 'node:fs/promises'
-import { delimiter, join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFile } from 'node:fs/promises'
+import { delimiter } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import extension from '../src/index'
+import { createCaptureExecutable } from './helpers/executable'
 import { emit, makeCtx, makePi } from './helpers/fake-pi'
 import { createTempDirectory, type TempDirectory } from './helpers/temp-directory'
-
-interface CaptureExecutable {
-  path: string
-  payloadPath: string
-}
 
 describe('pi peon adapter integration', () => {
   let tempDirectory: TempDirectory
@@ -15,7 +12,6 @@ describe('pi peon adapter integration', () => {
   let originalPeonBin: string | undefined
 
   beforeEach(async () => {
-    vi.resetModules()
     originalPath = process.env.PATH
     originalPeonBin = process.env.PEON_BIN
     tempDirectory = await createTempDirectory()
@@ -40,13 +36,9 @@ describe('pi peon adapter integration', () => {
     process.env.PATH = [tempDirectory.path, originalPath].filter(Boolean).join(delimiter)
     delete process.env.PEON_BIN
 
-    const { default: extension } = await import('../src/index')
     const { pi, handlers } = makePi()
     const cwd = '/integration/project'
-    const ctx = makeCtx({
-      cwd,
-      sessionManager: { getSessionFile: vi.fn(() => '/sessions/default-session.json') },
-    } as unknown as Parameters<typeof makeCtx>[0])
+    const ctx = makeCtx(cwd, '/sessions/default-session.json')
     let events = 0
 
     extension(pi)
@@ -85,25 +77,6 @@ describe('pi peon adapter integration', () => {
   })
 })
 
-/**
- * Create an executable that writes its STDIN to a file for later checks.
- * @param dir
- * @param name
- */
-async function createCaptureExecutable(dir: string, name: string): Promise<CaptureExecutable> {
-  const executablePath = join(dir, name)
-  const payloadPath = join(dir, `${name}.payloads`)
-  await writeFile(
-    executablePath,
-    `#!/bin/sh
-cat >> ${shellQuote(payloadPath)}
-printf '\n' >> ${shellQuote(payloadPath)}
-`
-  )
-  await chmod(executablePath, 0o755)
-  return { path: executablePath, payloadPath }
-}
-
 async function waitForPayloads(payloadPath: string, count: number): Promise<unknown[]> {
   const deadline = Date.now() + 1000
   let lastError: unknown
@@ -132,8 +105,4 @@ async function readPayloads(payloadPath: string): Promise<unknown[]> {
     .split('\n')
     .filter((line) => line.length > 0)
     .map((line) => JSON.parse(line) as unknown)
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`
 }
