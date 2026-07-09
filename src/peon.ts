@@ -41,7 +41,7 @@ export function createPeonSink(peonPath: string): PeonSink {
 }
 
 /** Fire-and-forget invocation: pipe JSON to `peon` on stdin, ignore output. */
-export function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
+function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
   let child: ReturnType<typeof spawn>
   try {
     child = spawn(peonPath, [], {
