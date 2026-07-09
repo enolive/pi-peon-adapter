@@ -2,40 +2,23 @@ import { readFile } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import extension from '../src/index'
+import { rememberEnv, type RememberedEnv } from './helpers/env'
 import { createCaptureExecutable } from './helpers/executable'
 import { emit, makeCtx, makePi } from './helpers/fake-pi'
 import { createTempDirectory, type TempDirectory } from './helpers/temp-directory'
 
 let tempDirectory: TempDirectory
-let originalPath: string | undefined
-let originalPeonBin: string | undefined
-let originalDebugLog: string | undefined
+let env: RememberedEnv
 
 describe('pi peon adapter integration', () => {
 
   beforeEach(async () => {
-    originalPath = process.env.PATH
-    originalPeonBin = process.env.PEON_BIN
-    originalDebugLog = process.env.PI_PEON_ADAPTER_DEBUG_LOG
+    env = rememberEnv('PATH', 'PEON_BIN', 'PI_PEON_ADAPTER_DEBUG_LOG')
     tempDirectory = await createTempDirectory()
   })
 
   afterEach(async () => {
-    if (originalPath === undefined) {
-      delete process.env.PATH
-    } else {
-      process.env.PATH = originalPath
-    }
-    if (originalPeonBin === undefined) {
-      delete process.env.PEON_BIN
-    } else {
-      process.env.PEON_BIN = originalPeonBin
-    }
-    if (originalDebugLog === undefined) {
-      delete process.env.PI_PEON_ADAPTER_DEBUG_LOG
-    } else {
-      process.env.PI_PEON_ADAPTER_DEBUG_LOG = originalDebugLog
-    }
+    env.restore()
     await tempDirectory.clean()
   })
 
@@ -115,7 +98,7 @@ describe('pi peon adapter integration', () => {
 
 async function startDefaultSession() {
   const peon = await createCaptureExecutable(tempDirectory.path, 'peon')
-  process.env.PATH = [tempDirectory.path, originalPath].filter(Boolean).join(delimiter)
+  process.env.PATH = [tempDirectory.path, process.env.PATH].filter(Boolean).join(delimiter)
   delete process.env.PEON_BIN
 
   const { pi, handlers } = makePi()

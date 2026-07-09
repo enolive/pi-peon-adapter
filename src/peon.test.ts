@@ -5,6 +5,7 @@ import { writeFile } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
 import { PassThrough, type Readable, type Writable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { rememberEnv, type RememberedEnv } from '../test/helpers/env'
 import { createExecutable } from '../test/helpers/executable'
 import { createTempDirectory, type TempDirectory } from '../test/helpers/temp-directory'
 import type { HookPayload } from './pi'
@@ -26,19 +27,15 @@ const payload = {
 
 describe('resolveExecutable', () => {
   let tempDirectories: TempDirectory[]
-  let originalPath: string | undefined
+  let env: RememberedEnv
 
   beforeEach(() => {
-    originalPath = process.env.PATH
+    env = rememberEnv('PATH')
     tempDirectories = []
   })
 
   afterEach(async () => {
-    if (originalPath === undefined) {
-      delete process.env.PATH
-    } else {
-      process.env.PATH = originalPath
-    }
+    env.restore()
     await Promise.all(tempDirectories.map((tempDirectory) => tempDirectory.clean()))
   })
 

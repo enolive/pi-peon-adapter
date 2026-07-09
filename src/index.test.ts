@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { rememberEnv, type RememberedEnv } from '../test/helpers/env'
 import { makePeon } from '../test/helpers/fake-peon'
 import { makePi } from '../test/helpers/fake-pi'
 import extension from './index'
@@ -10,19 +11,16 @@ vi.mock('../src/peon')
 vi.mock('../src/pi')
 
 describe('extension entrypoint control flow', () => {
-  const originalPeonBin = process.env.PEON_BIN
+  let env: RememberedEnv
   let warn: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
+    env = rememberEnv('PEON_BIN')
     warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   })
 
   afterEach(() => {
-    if (originalPeonBin === undefined) {
-      delete process.env.PEON_BIN
-    } else {
-      process.env.PEON_BIN = originalPeonBin
-    }
+    env.restore()
   })
 
   it('warns and registers no pi handlers when peon cannot be resolved', () => {
