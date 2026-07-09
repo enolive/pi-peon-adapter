@@ -45,8 +45,8 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink)
     peon.send(payload)
   })
 
-  pi.on('before_agent_start', (event, ctx) => {
-    logReceived(event, ctx)
+  pi.on('input', (event, ctx) => {
+    logReceived(event, ctx, { source: event.source })
     const payload = basePayload(ctx, 'UserPromptSubmit')
     peon.send(payload)
   })

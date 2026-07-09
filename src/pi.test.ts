@@ -24,7 +24,7 @@ describe('registerPiHandlers', () => {
 
     expect(on).toHaveBeenCalledTimes(6)
     expect(on).toHaveBeenCalledWith('session_start', expect.any(Function))
-    expect(on).toHaveBeenCalledWith('before_agent_start', expect.any(Function))
+    expect(on).toHaveBeenCalledWith('input', expect.any(Function))
     expect(on).toHaveBeenCalledWith('agent_end', expect.any(Function))
     expect(on).toHaveBeenCalledWith('tool_execution_end', expect.any(Function))
     expect(on).toHaveBeenCalledWith('session_before_compact', expect.any(Function))
@@ -49,19 +49,19 @@ describe('registerPiHandlers', () => {
     })
   })
 
-  it('maps before_agent_start to UserPromptSubmit', async () => {
+  it('maps input to UserPromptSubmit', async () => {
     const { handlers, peon } = setup()
     const cwd = '/prompt/project'
     const session = 'prompt-session'
 
     await emit(
       handlers,
-      'before_agent_start',
+      'input',
       {
-        type: 'before_agent_start',
-        prompt: 'hello',
-        systemPrompt: 'system',
-        systemPromptOptions: { cwd },
+        type: 'input',
+        text: 'hello',
+        images: [],
+        source: 'interactive',
       },
       ctx(cwd, session)
     )

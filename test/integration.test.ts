@@ -23,19 +23,19 @@ describe('pi peon adapter integration', () => {
   })
 
   it('writes default session payloads to the resolved peon executable', async () => {
-    const { peon, handlers, ctx, cwd } = await startDefaultSession()
+    const { peon, handlers, ctx } = await startDefaultSession()
     let events = 0
 
     await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, ctx)
     await waitForPayloads(peon.payloadPath, ++events)
     await emit(
       handlers,
-      'before_agent_start',
+      'input',
       {
-        type: 'before_agent_start',
-        prompt: 'hello',
-        systemPrompt: 'system',
-        systemPromptOptions: { cwd },
+        type: 'input',
+        text: 'hello',
+        images: [],
+        source: 'interactive',
       },
       ctx
     )
