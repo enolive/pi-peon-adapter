@@ -1,0 +1,46 @@
+{
+  "name": "pi-peon-adapter",
+  "version": "0.1.0",
+  "description": "pi extension adapter that maps lifecycle events to peon notifications",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "keywords": [
+    "pi-package",
+    "peon",
+    "notifications"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "npm run agent-lint && npm run format:check && npm run typecheck && npm run lint",
+    "agent-lint": "agnix . -v",
+    "test": "vitest run",
+    "test:unit": "vitest run src",
+    "test:integration": "vitest run test/integration.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "format": "prettier --write ."
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.3",
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "agnix": "^0.37.5",
+    "eslint": "^9.0.0",
+    "jiti": "^2.7.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.1.10"
+  }
+}
