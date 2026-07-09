@@ -1,10 +1,21 @@
+import { spawn } from 'node:child_process'
+import type { ChildProcessByStdio } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { chmod, writeFile } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
+import { PassThrough, type Readable, type Writable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTempDirectory, type TempDirectory } from '../test/helpers/temp-directory'
 import type { HookPayload } from './pi'
-import { createPeonSink, dispatchPeonEvent, resolveExecutable, type PeonSpawn } from './peon'
+import { createPeonSink, dispatchPeonEvent, resolveExecutable } from './peon'
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>()
+  return {
+    ...actual,
+    spawn: vi.fn(),
+  }
+})
 
 const payload = {
   hook_event_name: 'Stop',
@@ -85,130 +96,142 @@ describe('resolveExecutable', () => {
 })
 
 describe('dispatchPeonEvent', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('writes JSON payload to child stdin', () => {
-    const child = makeChild()
+    const child = makeChildProcess()
+    vi.mocked(spawn).mockReturnValue(child.process)
 
-    dispatchPeonEvent('/bin/peon', payload, { spawn: child.spawn })
+    dispatchPeonEvent('/bin/peon', payload)
 
-    expect(child.stdin.write).toHaveBeenCalledWith(JSON.stringify(payload))
+    expect(child.stdinWrite).toHaveBeenCalledWith(JSON.stringify(payload))
   })
 
   it('ends child stdin', () => {
-    const child = makeChild()
+    const child = makeChildProcess()
+    vi.mocked(spawn).mockReturnValue(child.process)
 
-    dispatchPeonEvent('/bin/peon', payload, { spawn: child.spawn })
+    dispatchPeonEvent('/bin/peon', payload)
 
-    expect(child.stdin.end).toHaveBeenCalled()
+    expect(child.stdinEnd).toHaveBeenCalled()
   })
 
   it('spawns peon with piped stdio', () => {
-    const child = makeChild()
+    const child = makeChildProcess()
+    vi.mocked(spawn).mockReturnValue(child.process)
 
-    dispatchPeonEvent('/bin/peon', payload, { spawn: child.spawn })
+    dispatchPeonEvent('/bin/peon', payload)
 
-    expect(child.spawn).toHaveBeenCalledWith('/bin/peon', [], { stdio: ['pipe', 'pipe', 'pipe'] })
+    expect(spawn).toHaveBeenCalledWith('/bin/peon', [], { stdio: ['pipe', 'pipe', 'pipe'] })
   })
 
-  it('clears timeout on close', () => {
-    const child = makeChild()
-    const timer = Symbol('timer')
-    const clearTimeout = vi.fn()
+  it('does not kill child after close clears timeout', () => {
+    const child = makeChildProcess()
+    vi.mocked(spawn).mockReturnValue(child.process)
 
-    dispatchPeonEvent('/bin/peon', payload, {
-      spawn: child.spawn,
-      setTimeout: vi.fn(() => timer),
-      clearTimeout,
-    })
+    dispatchPeonEvent('/bin/peon', payload)
     child.emit('close')
+    vi.advanceTimersByTime(5000)
 
-    expect(clearTimeout).toHaveBeenCalledWith(timer)
+    expect(child.kill).not.toHaveBeenCalled()
   })
 
-  it('clears timeout on error', () => {
-    const child = makeChild()
-    const timer = Symbol('timer')
-    const clearTimeout = vi.fn()
+  it('does not kill child after error clears timeout', () => {
+    const child = makeChildProcess()
+    vi.mocked(spawn).mockReturnValue(child.process)
 
-    dispatchPeonEvent('/bin/peon', payload, {
-      spawn: child.spawn,
-      setTimeout: vi.fn(() => timer),
-      clearTimeout,
-    })
+    dispatchPeonEvent('/bin/peon', payload)
     child.emit('error', new Error('spawn failed'))
+    vi.advanceTimersByTime(5000)
 
-    expect(clearTimeout).toHaveBeenCalledWith(timer)
+    expect(child.kill).not.toHaveBeenCalled()
   })
 
   it('kills child after timeout', () => {
-    const child = makeChild()
-    let timeoutCallback: (() => void) | undefined
-    const setTimeout = vi.fn((callback: () => void) => {
-      timeoutCallback = callback
-      return Symbol('timer')
-    })
+    const child = makeChildProcess()
+    vi.mocked(spawn).mockReturnValue(child.process)
 
-    dispatchPeonEvent('/bin/peon', payload, {
-      spawn: child.spawn,
-      setTimeout,
-    })
-    timeoutCallback?.()
+    dispatchPeonEvent('/bin/peon', payload)
+    vi.advanceTimersByTime(5000)
 
     expect(child.kill).toHaveBeenCalledWith('SIGTERM')
   })
 
   it('swallows spawn errors', () => {
-    const spawn = vi.fn<PeonSpawn>(() => {
+    vi.mocked(spawn).mockImplementation(() => {
       throw new Error('spawn failed')
     })
 
-    expect(() => dispatchPeonEvent('/bin/peon', payload, { spawn })).not.toThrow()
+    expect(() => dispatchPeonEvent('/bin/peon', payload)).not.toThrow()
   })
 
   it('swallows stdin write errors', () => {
-    const child = makeChild()
-    child.stdin.write.mockImplementation(() => {
+    const child = makeChildProcess()
+    child.stdinWrite.mockImplementation(() => {
       throw new Error('write failed')
     })
+    vi.mocked(spawn).mockReturnValue(child.process)
 
-    expect(() => dispatchPeonEvent('/bin/peon', payload, { spawn: child.spawn })).not.toThrow()
+    expect(() => dispatchPeonEvent('/bin/peon', payload)).not.toThrow()
   })
 
   it('swallows stdin end errors', () => {
-    const child = makeChild()
-    child.stdin.end.mockImplementation(() => {
+    const child = makeChildProcess()
+    child.stdinEnd.mockImplementation(() => {
       throw new Error('end failed')
     })
+    vi.mocked(spawn).mockReturnValue(child.process)
 
-    expect(() => dispatchPeonEvent('/bin/peon', payload, { spawn: child.spawn })).not.toThrow()
+    expect(() => dispatchPeonEvent('/bin/peon', payload)).not.toThrow()
   })
 })
 
 describe('createPeonSink', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('dispatches payloads to peon path', () => {
-    const child = makeChild()
-    const peon = createPeonSink('/bin/peon', { spawn: child.spawn })
+    const child = makeChildProcess()
+    vi.mocked(spawn).mockReturnValue(child.process)
+    const peon = createPeonSink('/bin/peon')
 
     peon.send(payload)
 
-    expect(child.spawn).toHaveBeenCalledWith('/bin/peon', [], { stdio: ['pipe', 'pipe', 'pipe'] })
-    expect(child.stdin.write).toHaveBeenCalledWith(JSON.stringify(payload))
+    expect(spawn).toHaveBeenCalledWith('/bin/peon', [], { stdio: ['pipe', 'pipe', 'pipe'] })
+    expect(child.stdinWrite).toHaveBeenCalledWith(JSON.stringify(payload))
   })
 })
 
-function makeChild() {
+function makeChildProcess() {
+  const stdin = new PassThrough()
+  const stdout = new PassThrough()
+  const stderr = new PassThrough()
   const emitter = new EventEmitter()
-  const stdin = {
-    write: vi.fn(),
-    end: vi.fn(),
-  }
   const kill = vi.fn()
-  const child = {
+  const process = Object.assign(emitter, {
     stdin,
+    stdout,
+    stderr,
+    stdio: [stdin, stdout, stderr],
     kill,
-    on: emitter.on.bind(emitter),
+  }) as unknown as ChildProcessByStdio<Writable, Readable, Readable>
+
+  return {
+    process,
+    kill,
+    stdinWrite: vi.spyOn(stdin, 'write'),
+    stdinEnd: vi.spyOn(stdin, 'end'),
     emit: emitter.emit.bind(emitter),
   }
-  const spawn = vi.fn<PeonSpawn>(() => child)
-
-  return { ...child, spawn }
 }

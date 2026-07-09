@@ -1,31 +1,7 @@
-import { spawn as nodeSpawn } from 'node:child_process'
-import type { StdioOptions } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { accessSync, constants as fsConstants } from 'node:fs'
 import { delimiter, isAbsolute, join } from 'node:path'
 import type { HookPayload, PeonSink } from './pi'
-
-interface PeonChild {
-  kill(signal?: NodeJS.Signals | number): boolean
-  on(event: 'error' | 'close', listener: (...args: unknown[]) => void): unknown
-  stdin?:
-    | {
-        write(input: string): unknown
-        end(): unknown
-      }
-    | null
-}
-type TimeoutHandle = unknown
-
-export type PeonSpawn = (command: string, args: string[], options: { stdio: StdioOptions }) => PeonChild
-
-export interface DispatchPeonEventOptions {
-  spawn?: PeonSpawn
-  timeoutMs?: number
-  setTimeout?: (callback: () => void, ms: number) => TimeoutHandle
-  clearTimeout?: (handle: TimeoutHandle) => void
-}
-
-const defaultSpawn: PeonSpawn = (command, args, options) => nodeSpawn(command, args, options)
 
 function canExecute(path: string): boolean {
   try {
@@ -34,14 +10,6 @@ function canExecute(path: string): boolean {
   } catch {
     return false
   }
-}
-
-function defaultSetTimeout(callback: () => void, ms: number): TimeoutHandle {
-  return setTimeout(callback, ms)
-}
-
-function defaultClearTimeout(handle: TimeoutHandle): void {
-  clearTimeout(handle as ReturnType<typeof setTimeout>)
 }
 
 /**
@@ -64,26 +32,17 @@ export function resolveExecutable(name: string): string | undefined {
   return undefined
 }
 
-export function createPeonSink(peonPath: string, options: DispatchPeonEventOptions = {}): PeonSink {
+export function createPeonSink(peonPath: string): PeonSink {
   return {
     send(payload) {
-      dispatchPeonEvent(peonPath, payload, options)
+      dispatchPeonEvent(peonPath, payload)
     },
   }
 }
 
 /** Fire-and-forget invocation: pipe JSON to `peon` on stdin, ignore output. */
-export function dispatchPeonEvent(
-  peonPath: string,
-  payload: HookPayload,
-  options: DispatchPeonEventOptions = {}
-): void {
-  const spawn = options.spawn ?? defaultSpawn
-  const setTimeoutImpl = options.setTimeout ?? defaultSetTimeout
-  const clearTimeoutImpl = options.clearTimeout ?? defaultClearTimeout
-  const timeoutMs = options.timeoutMs ?? 5000
-
-  let child: PeonChild
+export function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
+  let child: ReturnType<typeof spawn>
   try {
     child = spawn(peonPath, [], {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -92,16 +51,16 @@ export function dispatchPeonEvent(
     return
   }
 
-  const timeout = setTimeoutImpl(() => {
+  const timeout = setTimeout(() => {
     child.kill('SIGTERM')
-  }, timeoutMs)
+  }, 5000)
 
   child.on('error', () => {
-    clearTimeoutImpl(timeout)
+    clearTimeout(timeout)
   })
 
   child.on('close', () => {
-    clearTimeoutImpl(timeout)
+    clearTimeout(timeout)
   })
 
   try {
