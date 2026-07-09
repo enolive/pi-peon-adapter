@@ -24,7 +24,7 @@ import { registerPiHandlers } from './pi'
 const PEON_BIN = process.env.PEON_BIN || 'peon'
 
 // noinspection JSUnusedGlobalSymbols
-export default function (pi: ExtensionAPI) {
+export default function (pi: Pick<ExtensionAPI, 'on'>) {
   const peonPath = resolveExecutable(PEON_BIN)
   if (!peonPath) {
     console.warn(
