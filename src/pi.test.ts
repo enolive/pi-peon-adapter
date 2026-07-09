@@ -37,7 +37,7 @@ describe('registerPiHandlers', () => {
   })
 
   describe('maps session_start startup to SessionStart with reason', async () => {
-    const reasons = ['startup', 'resume']
+    const reasons = ['startup', 'resume'] as const
     it.each(reasons)('%s', async (reason) => {
       const { handlers, peon } = setup()
       const cwd = '/startup/project'
@@ -49,7 +49,7 @@ describe('registerPiHandlers', () => {
         hook_event_name: 'SessionStart',
         session_id: `pi-${session}`,
         cwd,
-        source: 'startup',
+        source: reason,
       })
     })
   })
