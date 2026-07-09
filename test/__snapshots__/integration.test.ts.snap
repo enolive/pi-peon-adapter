@@ -1,0 +1,29 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`pi peon adapter integration > writes default session payloads to the resolved peon executable 1`] = `
+[
+  {
+    "cwd": "/integration/project",
+    "hook_event_name": "SessionStart",
+    "session_id": "pi-default-session",
+    "source": "startup",
+  },
+  {
+    "cwd": "/integration/project",
+    "hook_event_name": "UserPromptSubmit",
+    "session_id": "pi-default-session",
+  },
+  {
+    "cwd": "/integration/project",
+    "hook_event_name": "Stop",
+    "session_id": "pi-default-session",
+  },
+  {
+    "cwd": "/integration/project",
+    "error": "bash failed",
+    "hook_event_name": "PostToolUseFailure",
+    "session_id": "pi-default-session",
+    "tool_name": "Bash",
+  },
+]
+`;
