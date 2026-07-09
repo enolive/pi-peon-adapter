@@ -1,0 +1,8 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`diagnostics > writes timestamped lines with levels and formatted fields 1`] = `
+"<timestamp> [info] hook=startup reason=send
+<timestamp> [warn] hook=tool_execution_end decision=skip
+<timestamp> [error] event=Stop decision=spawn_error session_id=pi-session
+"
+`;
