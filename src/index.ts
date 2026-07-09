@@ -17,13 +17,13 @@
  * Override the binary with the PEON_BIN env var (default: `peon` on PATH).
  */
 
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import { spawn } from 'node:child_process';
-import { accessSync, constants as fsConstants } from 'node:fs';
-import { delimiter, isAbsolute, join } from 'node:path';
-import { registerPiHandlers, type HookPayload } from './pi.js';
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import { spawn } from 'node:child_process'
+import { accessSync, constants as fsConstants } from 'node:fs'
+import { delimiter, isAbsolute, join } from 'node:path'
+import { registerPiHandlers, type HookPayload } from './pi.js'
 
-const PEON_BIN = process.env.PEON_BIN || 'peon';
+const PEON_BIN = process.env.PEON_BIN || 'peon'
 
 /**
  * Locate an executable. If `name` contains a path separator (or is absolute),
@@ -31,70 +31,70 @@ const PEON_BIN = process.env.PEON_BIN || 'peon';
  * path, or `undefined` if not found / not executable.
  */
 function resolveExecutable(name: string): string | undefined {
-  const hasPathSep = name.includes('/') || name.includes('\\');
+  const hasPathSep = name.includes('/') || name.includes('\\')
   if (isAbsolute(name) || hasPathSep) {
     try {
-      accessSync(name, fsConstants.X_OK);
-      return name;
+      accessSync(name, fsConstants.X_OK)
+      return name
     } catch {
-      return undefined;
+      return undefined
     }
   }
-  const pathEnv = process.env.PATH ?? '';
+  const pathEnv = process.env.PATH ?? ''
   for (const dir of pathEnv.split(delimiter)) {
-    if (!dir) continue;
-    const candidate = join(dir, name);
+    if (!dir) continue
+    const candidate = join(dir, name)
     try {
-      accessSync(candidate, fsConstants.X_OK);
-      return candidate;
+      accessSync(candidate, fsConstants.X_OK)
+      return candidate
     } catch {
       // keep looking
     }
   }
-  return undefined;
+  return undefined
 }
 
 /** Fire-and-forget invocation: pipe JSON to `peon` on stdin, ignore output. */
 function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
-  const input = JSON.stringify(payload);
+  const input = JSON.stringify(payload)
   const child = spawn(peonPath, [], {
     stdio: ['pipe', 'pipe', 'pipe'], // stdin, stdout, stderr
-  });
+  })
 
   // Kill after 5 seconds to prevent hangs
   const timeout = setTimeout(() => {
-    child.kill('SIGTERM');
-  }, 5000);
+    child.kill('SIGTERM')
+  }, 5000)
 
   child.on('error', () => {
     // Spawn failed (ENOENT, EACCES) — still clean up
-    clearTimeout(timeout);
+    clearTimeout(timeout)
     // Swallow, this is fire-and-forget.
-  });
+  })
 
   child.on('close', () => {
-    clearTimeout(timeout);
+    clearTimeout(timeout)
     // Fire-and-forget, no need to do anything with exit code.
-  });
+  })
 
   // Write input and close stdin
-  child.stdin?.write(input);
-  child.stdin?.end();
+  child.stdin?.write(input)
+  child.stdin?.end()
 }
 
 // noinspection JSUnusedGlobalSymbols
 export default function (pi: ExtensionAPI) {
-  const peonPath = resolveExecutable(PEON_BIN);
+  const peonPath = resolveExecutable(PEON_BIN)
   if (!peonPath) {
     console.warn(
       `peon-ping: \`${PEON_BIN}\` not found on PATH. Install it (https://github.com/PeonPing/peon-ping) or set $PEON_BIN. Extension disabled.`
-    );
-    return;
+    )
+    return
   }
 
   registerPiHandlers(pi, {
     send(payload) {
-      dispatchPeonEvent(peonPath, payload);
+      dispatchPeonEvent(peonPath, payload)
     },
-  });
+  })
 }
