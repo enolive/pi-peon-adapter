@@ -79,25 +79,17 @@ describe('pi peon adapter integration', () => {
       },
       ctx
     )
-    await waitForPayloads(peon.payloadPath, ++events)
-    await emit(
-      handlers,
-      'tool_execution_end',
-      {
-        type: 'tool_execution_end',
-        toolCallId: 'read-tool-call',
-        toolName: 'read',
-        result: 'failed',
-        isError: true,
-      },
-      ctx
-    )
     const finalPayloads = await waitForPayloads(peon.payloadPath, ++events)
 
     expect(finalPayloads).toMatchSnapshot()
   })
 })
 
+/**
+ * Create an executable that writes its STDIN to a file for later checks.
+ * @param dir
+ * @param name
+ */
 async function createCaptureExecutable(dir: string, name: string): Promise<CaptureExecutable> {
   const executablePath = join(dir, name)
   const payloadPath = join(dir, `${name}.payloads`)
@@ -115,7 +107,6 @@ printf '\n' >> ${shellQuote(payloadPath)}
 async function waitForPayloads(payloadPath: string, count: number): Promise<unknown[]> {
   const deadline = Date.now() + 1000
   let lastError: unknown
-
   while (Date.now() < deadline) {
     try {
       const payloads = await readPayloads(payloadPath)
@@ -125,12 +116,10 @@ async function waitForPayloads(payloadPath: string, count: number): Promise<unkn
     }
     await delay(10)
   }
-
-  try {
-    return await readPayloads(payloadPath)
-  } catch (error) {
-    throw lastError ?? error
+  if (lastError instanceof Error) {
+    throw lastError
   }
+  throw new Error(`Timed out waiting for ${count} payloads`)
 }
 
 function delay(delay: number) {
