@@ -1,0 +1,146 @@
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+:icons: font
+
+:toc:
+
+= pi-peon-adapter
+
+A small pi extension that forwards selected pi lifecycle events to the `peon` executable from the https://www.peonping.com[PeonPing] project.
+
+PeonPing can then play sounds for events such as submitted prompts, failed bash commands, and completed agent turns.
+
+== When and why to use this extension
+
+This is not the first attempt to write a PeonPing variant for pi.
+A few already exist, and some are well-crafted.
+However, they come with trade-offs:
+
+- some essentially reimplement PeonPing inside pi, including sound handling, lifecycle behavior, and terminal interaction
+- some target older pi APIs
+- not all are structured for testability
+
+Use this extension when:
+
+- you want audio feedback on agentic events such as a completed task
+- you want to use the official `peon` executable together with pi
+- you care about well-tested code
+
+== Installation
+
+First, make sure you have https://www.peonping.com[PeonPing] installed.
+Install and configure it to your liking!
+
+[source,shell]
+----
+# NPM (later)
+# pi install npm:pi-peon-adapter
+# GitHub
+pi install git:github.com/enolive/pi-peon-adapter
+----
+
+== Install locally
+
+Check out the code from the official code repository `https://github.com/enolive/pi-peon-adapter`, and then:
+
+[source,bash]
+----
+pi install ./pi-peon-adapter
+----
+
+To run once without installing:
+
+[source,bash]
+----
+pi -e ./pi-peon-adapter
+----
+
+== Configuration
+
+The extension looks for the `peon` executable on your `PATH`.
+You can override this by setting up the `PEON_BIN` environment variable to your liking.
+
+NOTE: If the executable is not found, this extension will display a startup warning and won't activate.
+
+[source,bash]
+----
+export PEON_BIN=/path/to/your/peon
+----
+
+Set `PI_PEON_ADAPTER_DEBUG_LOG` to enable debug logging. This is useful when analyzing or reporting a bug.
+When debug logging is not configured, the adapter stays silent except for startup warnings such as a missing `peon` executable.
+
+[source,bash]
+----
+# will produce a simple log to the given path
+export PI_PEON_ADAPTER_DEBUG_LOG=/tmp/pi-peon-debug.log
+pi
+
+# follow the log in a second terminal
+tail -f /tmp/pi-peon-debug.log
+----
+
+== Event mapping
+
+[cols="1,1,2",options="header"]
+|===
+| pi event
+| PeonPing hook event
+| notes
+
+| `session_start`
+| `SessionStart`
+| Skips `reload`, `fork`, and contexts without UI. Uses `source=resume` for resume, otherwise `source=startup`.
+
+| `input`
+| `UserPromptSubmit`
+| Fires when user input is received, before agent execution.
+
+| `agent_end`
+| `Stop`
+| Sent when an agent turn ends.
+
+| `tool_execution_end`
+| `PostToolUseFailure`
+| Only for failed bash executions: `isError=true` and `toolName=bash`.
+
+| `session_before_compact`
+| `PreCompact`
+| Sent before compaction starts.
+
+| `session_shutdown`
+| `SessionEnd`
+| Sent when the session runtime is shutting down.
+|===
+
+Every payload includes `cwd` and a `session_id` prefixed with `pi-`.
+
+== Commands
+
+This extension intentionally does not implement any pi commands such as
+`/peon-disable` or `/peon-enable`.
+You can always run the executable directly from the pi prompt and use all available commands.
+
+From pi, use a user shell command:
+
+[source]
+----
+# turns peon on and off
+!!peon toggle
+----
+
+== Separate PeonPing sound pack from the author
+
+TIP: This adapter does not bundle or require any sound pack.
+However, I also created a separate sound pack for PeonPing with the voice of https://openpeon.com/packs/nier-2b[2B from Nier Automata].
+Check it out, especially if you get tired of the default voice pack!
+
+== Inspiration
+
+- https://github.com/PeonPing/peon-ping/blob/main/adapters/opencode/peon-ping.ts[PeonPing adapter for OpenCode on GitHub]
+- https://github.com/helle253/pi-peon[helle253@pi-peon on GitHub]
