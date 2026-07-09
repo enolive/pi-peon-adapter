@@ -128,7 +128,9 @@ async function startDefaultSession() {
 }
 
 async function normalizedDebugLog(logPath: string): Promise<string> {
-  return (await readFile(logPath, 'utf8')).replaceAll(/^\S+ /gm, '<timestamp> ')
+  return (await readFile(logPath, 'utf8'))
+    .replaceAll(/^\S+ /gm, '<timestamp> ')
+    .replaceAll(/peon_path=\S+\/peon/g, 'peon_path=<peon>')
 }
 
 async function waitForPayloads(payloadPath: string, count: number): Promise<unknown[]> {

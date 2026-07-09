@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { accessSync, constants as fsConstants } from 'node:fs'
 import { delimiter, isAbsolute, join } from 'node:path'
+import { getErrorMessage, debugLogFields, type DebugLogValue } from './diagnostics'
 import type { HookPayload, PeonSink } from './pi'
 
 function canExecute(path: string): boolean {
@@ -42,36 +43,75 @@ export function createPeonSink(peonPath: string): PeonSink {
 
 /** Fire-and-forget invocation: pipe JSON to `peon` on stdin, ignore output. */
 function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
+  logPeonEvent('info', peonPath, payload, {
+    decision: 'send',
+    cwd: payload.cwd,
+    session_id: payload.session_id,
+  })
+
   let child: ReturnType<typeof spawn>
   try {
     child = spawn(peonPath, [], {
       stdio: ['pipe', 'pipe', 'pipe'],
     })
-  } catch {
+  } catch (error) {
+    logPeonEvent('error', peonPath, payload, {
+      decision: 'spawn_error',
+      error: getErrorMessage(error),
+    })
     return
   }
 
   const timeout = setTimeout(() => {
+    logPeonEvent('warn', peonPath, payload, { decision: 'timeout_kill' })
     child.kill('SIGTERM')
   }, 5000)
 
-  child.on('error', () => {
+  child.on('error', (error) => {
+    logPeonEvent('error', peonPath, payload, {
+      decision: 'child_error',
+      error: getErrorMessage(error),
+    })
     clearTimeout(timeout)
   })
 
-  child.on('close', () => {
+  child.on('close', (code, signal) => {
+    logPeonEvent('info', peonPath, payload, {
+      decision: 'child_close',
+      code: typeof code === 'number' ? code : undefined,
+      signal: typeof signal === 'string' ? signal : undefined,
+    })
     clearTimeout(timeout)
   })
 
   try {
     child.stdin?.write(JSON.stringify(payload))
-  } catch {
-    // Swallow, this is fire-and-forget.
+  } catch (error) {
+    logPeonEvent('error', peonPath, payload, {
+      decision: 'stdin_write_error',
+      error: getErrorMessage(error),
+    })
   }
 
   try {
     child.stdin?.end()
-  } catch {
-    // Swallow, this is fire-and-forget.
+  } catch (error) {
+    logPeonEvent('error', peonPath, payload, {
+      decision: 'stdin_end_error',
+      error: getErrorMessage(error),
+    })
   }
+}
+
+function logPeonEvent(
+  level: 'info' | 'warn' | 'error',
+  peonPath: string,
+  payload: HookPayload,
+  fields: Record<string, DebugLogValue>
+): void {
+  debugLogFields(level, {
+    peon_path: peonPath,
+    event: payload.hook_event_name,
+    ...fields,
+  })
 }
