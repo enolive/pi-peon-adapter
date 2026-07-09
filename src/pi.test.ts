@@ -1,9 +1,4 @@
-import type {
-  BeforeAgentStartEvent,
-  ExtensionContext,
-  SessionBeforeCompactEvent,
-  SessionStartEvent,
-} from '@earendil-works/pi-coding-agent'
+import type { ExtensionContext, SessionBeforeCompactEvent } from '@earendil-works/pi-coding-agent'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { emit, makeCtx, makePi } from '../test/helpers/fake-pi'
 import { makePeon } from '../test/helpers/fake-peon'
@@ -36,7 +31,7 @@ describe('registerPiHandlers', () => {
     expect(on).toHaveBeenCalledWith('session_shutdown', expect.any(Function))
   })
 
-  describe('maps session_start startup to SessionStart with reason', async () => {
+  describe('maps session_start startup to SessionStart with reason', () => {
     const reasons = ['startup', 'resume'] as const
     it.each(reasons)('%s', async (reason) => {
       const { handlers, peon } = setup()
@@ -66,8 +61,8 @@ describe('registerPiHandlers', () => {
         type: 'before_agent_start',
         prompt: 'hello',
         systemPrompt: 'system',
-        systemPromptOptions: {},
-      } as BeforeAgentStartEvent,
+        systemPromptOptions: { cwd },
+      },
       ctx(cwd, session)
     )
 
@@ -163,40 +158,47 @@ describe('registerPiHandlers', () => {
     expect(peon.send).toHaveBeenCalledWith(expect.objectContaining({ cwd }))
   })
 
-  it('derives session id from the session file basename and prefixes it with pi-', async () => {
-    const { handlers, peon } = setup()
-    const sessionFile = '/tmp/sessions/specific-session.pi.json'
-    const ctx = makeCtx({
-      sessionManager: { getSessionFile: vi.fn(() => sessionFile) },
-    } as unknown as Partial<ExtensionContext>)
+  describe('derives session id from the session file basename and prefixes it with pi-', () => {
+    it.each([
+      ['/tmp/sessions/specific-session.pi.json', 'pi-specific-session.pi'],
+      ['/tmp/sessions/////specific-session.pi.json', 'pi-specific-session.pi'],
+      ['simple-session', 'pi-simple-session'],
+      ['readme.md', 'pi-readme'],
+    ])('%s -> %s', async (sessionFile, expected) => {
+      const { handlers, peon } = setup()
+      const ctx = makeCtx({
+        sessionManager: { getSessionFile: vi.fn(() => sessionFile) },
+      } as unknown as Partial<ExtensionContext>)
 
-    await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
+      await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
 
-    expect(peon.send).toHaveBeenCalledWith(expect.objectContaining({ session_id: 'pi-specific-session.pi' }))
+      expect(peon.send).toHaveBeenCalledWith(expect.objectContaining({ session_id: expected }))
+    })
   })
 
-  it('uses a pi-prefixed fallback session id when no session file exists', async () => {
-    const { handlers, peon } = setup()
-    const ctx = makeCtx({
-      sessionManager: { getSessionFile: vi.fn(() => undefined) },
-    } as unknown as Partial<ExtensionContext>)
+  describe('uses a pi-prefixed fallback session id when no valid session file exists', () => {
+    it.each([undefined, '', '/just/a/path/', '////'])('%s -> %s', async (sessionFile) => {
+      const { handlers, peon } = setup()
+      const ctx = makeCtx({
+        sessionManager: { getSessionFile: vi.fn(() => sessionFile) },
+      } as unknown as Partial<ExtensionContext>)
 
-    await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
+      await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
 
-    expect(peon.send).toHaveBeenCalledWith(
-      expect.objectContaining({ session_id: 'pi-00000000-0000-4000-8000-000000000000' })
-    )
+      expect(peon.send).toHaveBeenCalledWith(
+        expect.objectContaining({ session_id: 'pi-00000000-0000-4000-8000-000000000000' })
+      )
+    })
   })
 
-  it.each([
-    ['reload reason', { type: 'session_start', reason: 'reload' }],
-    ['fork reason', { type: 'session_start', reason: 'fork' }],
-  ] as const)('skips session_start for %s', async (_label, event) => {
-    const { handlers, peon } = setup()
+  describe('skips session_start for', () => {
+    it.each(['reload', 'fork'] as const)('%s', async (reason) => {
+      const { handlers, peon } = setup()
 
-    await emit(handlers, 'session_start', event)
+      await emit(handlers, 'session_start', { type: 'session_start', reason })
 
-    expect(peon.send).not.toHaveBeenCalled()
+      expect(peon.send).not.toHaveBeenCalled()
+    })
   })
 
   it('skips session_start when UI is unavailable', async () => {
@@ -207,20 +209,22 @@ describe('registerPiHandlers', () => {
     expect(peon.send).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['successful bash execution', { toolName: 'bash', isError: false }],
-    ['non-bash error', { toolName: 'read', isError: true }],
-  ] as const)('skips tool_execution_end for %s', async (_label, event) => {
-    const { handlers, peon } = setup()
+  describe('skips tool_execution_end for', () => {
+    it.each([
+      ['successful bash execution', { toolName: 'bash', isError: false }],
+      ['non-bash error', { toolName: 'read', isError: true }],
+    ] as const)('%s', async (_label, event) => {
+      const { handlers, peon } = setup()
 
-    await emit(handlers, 'tool_execution_end', {
-      type: 'tool_execution_end',
-      toolCallId: 'tool-1',
-      result: undefined,
-      ...event,
+      await emit(handlers, 'tool_execution_end', {
+        type: 'tool_execution_end',
+        toolCallId: 'tool-1',
+        result: undefined,
+        ...event,
+      })
+
+      expect(peon.send).not.toHaveBeenCalled()
     })
-
-    expect(peon.send).not.toHaveBeenCalled()
   })
 })
 

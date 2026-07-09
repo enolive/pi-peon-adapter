@@ -28,13 +28,12 @@ export interface PeonSink {
 
 function sessionIdFor(ctx: ExtensionContext): string {
   const file = ctx.sessionManager?.getSessionFile?.()
-  if (file) {
-    return `pi-${
-      file
-        .split('/')
-        .pop()
-        ?.replace(/\.[^.]+$/, '') ?? 'session'
-    }`
+  const candidate = file
+    ?.split('/')
+    ?.pop()
+    ?.replace(/\.[^.]+$/, '')
+  if (candidate) {
+    return `pi-${candidate}`
   }
   return `pi-${randomUUID()}`
 }
