@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { randomUUID } from 'node:crypto'
+import { debugLog } from './diagnostics'
 
 export type HookEvent =
   | 'SessionStart'
@@ -46,39 +47,96 @@ function basePayload(ctx: ExtensionContext, hook_event_name: HookEvent): HookPay
   }
 }
 
+type LogValue = string | number | boolean | undefined
+
+function logEvent(hook: string, fields: Record<string, LogValue>): void {
+  const parts: string[] = []
+  for (const [key, value] of Object.entries({ hook, ...fields })) {
+    if (value !== undefined) parts.push(`${key}=${value}`)
+  }
+  debugLog(parts.join(' '))
+}
+
+function logReceived(event: { type: string }, ctx: ExtensionContext, fields: Record<string, LogValue> = {}): void {
+  logEvent(event.type, { phase: 'received', cwd: ctx.cwd, ...fields })
+}
+
+function logSkip(event: { type: string }, ctx: ExtensionContext, reason: string, fields: Record<string, LogValue> = {}): void {
+  logEvent(event.type, { decision: 'skip', reason, cwd: ctx.cwd, ...fields })
+}
+
+function logSend(event: { type: string }, payload: HookPayload): void {
+  logEvent(event.type, {
+    decision: 'send',
+    event: payload.hook_event_name,
+    cwd: payload.cwd,
+    session_id: payload.session_id,
+  })
+}
+
 export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink): void {
   pi.on('session_start', (event, ctx) => {
-    if (!ctx.hasUI) return
-    if (event.reason === 'reload' || event.reason === 'fork') return
-    peon.send({
+    logReceived(event, ctx, { reason: event.reason, has_ui: ctx.hasUI })
+    if (!ctx.hasUI) {
+      logSkip(event, ctx, 'no_ui')
+      return
+    }
+    if (event.reason === 'reload' || event.reason === 'fork') {
+      logSkip(event, ctx, event.reason)
+      return
+    }
+    const payload = {
       ...basePayload(ctx, 'SessionStart'),
       source: event.reason === 'resume' ? 'resume' : 'startup',
-    })
+    }
+    logSend(event, payload)
+    peon.send(payload)
   })
 
-  pi.on('before_agent_start', (_event, ctx) => {
-    peon.send(basePayload(ctx, 'UserPromptSubmit'))
+  pi.on('before_agent_start', (event, ctx) => {
+    logReceived(event, ctx)
+    const payload = basePayload(ctx, 'UserPromptSubmit')
+    logSend(event, payload)
+    peon.send(payload)
   })
 
-  pi.on('agent_end', (_event, ctx) => {
-    peon.send(basePayload(ctx, 'Stop'))
+  pi.on('agent_end', (event, ctx) => {
+    logReceived(event, ctx)
+    const payload = basePayload(ctx, 'Stop')
+    logSend(event, payload)
+    peon.send(payload)
   })
 
   pi.on('tool_execution_end', (event, ctx) => {
-    if (!event.isError) return
-    if (event.toolName !== 'bash') return
-    peon.send({
+    logReceived(event, ctx, { tool: event.toolName, is_error: event.isError })
+    if (!event.isError) {
+      logSkip(event, ctx, 'not_error', { tool: event.toolName })
+      return
+    }
+    if (event.toolName !== 'bash') {
+      logSkip(event, ctx, 'non_bash_tool', { tool: event.toolName })
+      return
+    }
+    const payload = {
       ...basePayload(ctx, 'PostToolUseFailure'),
       tool_name: 'Bash',
       error: 'bash failed',
-    })
+    }
+    logSend(event, payload)
+    peon.send(payload)
   })
 
-  pi.on('session_before_compact', (_event, ctx) => {
-    peon.send(basePayload(ctx, 'PreCompact'))
+  pi.on('session_before_compact', (event, ctx) => {
+    logReceived(event, ctx)
+    const payload = basePayload(ctx, 'PreCompact')
+    logSend(event, payload)
+    peon.send(payload)
   })
 
-  pi.on('session_shutdown', (_event, ctx) => {
-    peon.send(basePayload(ctx, 'SessionEnd'))
+  pi.on('session_shutdown', (event, ctx) => {
+    logReceived(event, ctx)
+    const payload = basePayload(ctx, 'SessionEnd')
+    logSend(event, payload)
+    peon.send(payload)
   })
 }

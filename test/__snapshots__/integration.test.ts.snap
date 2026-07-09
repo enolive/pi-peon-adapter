@@ -1,5 +1,15 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`pi peon adapter integration > writes debug log lines for received events and sink handoff 1`] = `
+"<timestamp> hook=session_start phase=received cwd=/integration/project reason=startup has_ui=true
+<timestamp> hook=session_start decision=send event=SessionStart cwd=/integration/project session_id=pi-default-session
+<timestamp> hook=tool_execution_end phase=received cwd=/integration/project tool=read is_error=true
+<timestamp> hook=tool_execution_end decision=skip reason=non_bash_tool cwd=/integration/project tool=read
+<timestamp> hook=tool_execution_end phase=received cwd=/integration/project tool=bash is_error=true
+<timestamp> hook=tool_execution_end decision=send event=PostToolUseFailure cwd=/integration/project session_id=pi-default-session
+"
+`;
+
 exports[`pi peon adapter integration > writes default session payloads to the resolved peon executable 1`] = `
 [
   {

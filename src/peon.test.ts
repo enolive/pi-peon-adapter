@@ -173,7 +173,7 @@ describe('createPeonSink', () => {
     expect(() => peon.send(payload)).not.toThrow()
   })
 
-  it('swallows stdin write errors', () => {
+  it('swallows stdin write errors and still ends child stdin', () => {
     const child = makeChildProcess()
     child.stdinWrite.mockImplementation(() => {
       throw new Error('write failed')
@@ -182,6 +182,7 @@ describe('createPeonSink', () => {
     const peon = createPeonSink('/bin/peon')
 
     expect(() => peon.send(payload)).not.toThrow()
+    expect(child.stdinEnd).toHaveBeenCalled()
   })
 
   it('swallows stdin end errors', () => {
