@@ -11,7 +11,6 @@ let tempDirectory: TempDirectory
 let env: RememberedEnv
 
 describe('pi peon adapter integration', () => {
-
   beforeEach(async () => {
     env = rememberEnv('PATH', 'PEON_BIN', 'PI_PEON_ADAPTER_DEBUG_LOG')
     tempDirectory = await createTempDirectory()

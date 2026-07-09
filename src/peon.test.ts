@@ -84,7 +84,6 @@ describe('resolveExecutable', () => {
     tempDirectories.push(tempDirectory)
     return tempDirectory
   }
-
 })
 
 describe('createPeonSink', () => {
