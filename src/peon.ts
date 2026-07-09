@@ -76,12 +76,16 @@ function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
   })
 
   child.on('close', (code, signal) => {
+    clearTimeout(timeout)
+    if (code === 0 && !signal) {
+      // don't log successful exits
+      return
+    }
     logPeonEvent('info', peonPath, payload, {
       decision: 'child_close',
       code: typeof code === 'number' ? code : undefined,
       signal: typeof signal === 'string' ? signal : undefined,
     })
-    clearTimeout(timeout)
   })
 
   try {
