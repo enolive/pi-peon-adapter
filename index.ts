@@ -1,10 +1,21 @@
 /**
- * pi-peon-adapter
+ * peon-ping bridge for pi
  *
- * Adapter that maps pi lifecycle events to peon notifications.
+ * Thin adapter that maps pi lifecycle events to Claude-Code-style hook JSON
+ * and pipes them into the installed `peon` CLI on stdin. The CLI handles
+ * everything else (sound packs, volume, notifications, spam detection,
+ * relay, etc.) — see `peon help`.
  *
- * This is the package entrypoint that pi uses to load extensions.
- * The implementation lives in src/.
+ * Unlike re-implementations, this extension does NOT manage packs, audio,
+ * config, or notifications itself. Configure via `peon` directly:
+ *
+ *   peon setup           # interactive wizard
+ *   peon packs install … # install sound packs
+ *   peon volume 0.4
+ *   peon notifications off
+ *
+ * Override the binary with the PEON_BIN env var (default: `peon` on PATH).
+ *
+ * Set PI_PEON_ADAPTER_DEBUG_LOG to a path to enable debug logging.
  */
-
-export { default } from './src/index.js'
+export { default } from './src/index'

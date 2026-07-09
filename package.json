@@ -3,10 +3,7 @@
   "version": "0.1.0",
   "description": "pi extension adapter that maps lifecycle events to peon notifications",
   "type": "module",
-  "main": "src/index.ts",
-  "exports": {
-    ".": "./src/index.ts"
-  },
+  "main": "index.ts",
   "keywords": [
     "pi-package",
     "peon",
@@ -24,10 +21,12 @@
     "test:unit": "vitest run src",
     "test:coverage": "vitest run src --coverage",
     "test:integration": "vitest run test/integration.test.ts",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format:check": "prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "prepack": "downdoc README.adoc"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
@@ -38,6 +37,7 @@
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^4.1.10",
     "agnix": "^0.37.5",
+    "downdoc": "^1.1.0-stable",
     "eslint": "^9.0.0",
     "jiti": "^2.7.0",
     "prettier": "^3.0.0",
