@@ -92,16 +92,25 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink)
   })
 }
 
+/**
+ * Derive a session name from a session file path: take the last path segment
+ * and strip its final extension. Matches both `/` and `\` separators so
+ * Windows backslash paths resolve correctly regardless of the host platform.
+ * Returns undefined when no usable name can be derived.
+ */
+export function extractSessionName(sessionFile: string | undefined): string | undefined {
+  if (!sessionFile) {
+    return undefined
+  }
+  const basename = sessionFile.match(/[^\\/]+$/)?.[0] ?? ''
+  const name = basename.replace(/\.[^.]+$/, '')
+  return name || undefined
+}
+
 function sessionIdFor(ctx: ExtensionContext): string {
   const file = ctx.sessionManager?.getSessionFile?.()
-  const candidate = file
-    ?.split('/')
-    ?.pop()
-    ?.replace(/\.[^.]+$/, '')
-  if (candidate) {
-    return `pi-${candidate}`
-  }
-  return `pi-${randomUUID()}`
+  const candidate = extractSessionName(file)
+  return candidate ? `pi-${candidate}` : `pi-${randomUUID()}`
 }
 
 function basePayload(ctx: ExtensionContext, hook_event_name: HookEvent): HookPayload {

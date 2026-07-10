@@ -14,15 +14,15 @@
 
 ### 3. Guard `input` on `hasUI`
 
-**Status:** Implemented in working tree (uncommitted); tests + all pre-handoff checks green.
+**Status:** Done — committed in `667aca1`.
 
-**What shipped:** Added `if (!ctx.hasUI) { logSkip(event, ctx, 'no_ui'); return }` to the `input` handler in `src/pi.ts`, mirroring the existing `session_start` guard. Tests: the single `interactive`-only `input` test was replaced with a parameterized 3-source preservation test (`interactive`, `rpc`, `extension`) that locks in ACP (`source: "rpc"`) forwarding under `hasUI: true`, plus a `hasUI: false` skip test.
+**What shipped:** Added `if (!ctx.hasUI) { logSkip(event, ctx, 'no_ui'); return }` to the `input` handler in `src/pi.ts`, mirroring the existing `session_start` guard. Tests: the single `interactive`-only `input` test was replaced with a parameterized 3-source preservation test (`interactive`, `rpc`, `extension`) that locks in ACP (`source: "rpc"`) forwarding under `hasUI: true`, plus a `hasUI: false` skip test. `test/helpers/fake-pi.ts` `makeCtx` was refactored to a structured `MakeCtxOptions` so `hasUI: false` no longer requires post-construction mutation.
 
 **Rationale:** `input` forwarded every source as `UserPromptSubmit`, including headless `pi -p "…"` / `pi --json` runs where no human hears the sound. Filtering by `InputEvent.source` would be wrong — `source: "rpc"` covers both programmatic RPC and ACP-driven input (human in Zed/IDEA via pi-acp), so a source filter would silently kill the prompt sound for IDE users. `ctx.hasUI` is `true` in TUI and RPC modes (ACP included), `false` in print/json — exactly the "is there a human to hear this?" axis, and consistent with the existing `session_start` idiom. No README change needed.
 
 ### 4. Drain child stdio and escalate `SIGTERM` → `SIGKILL`
 
-**Status:** Implemented in working tree (uncommitted); tests + all pre-handoff checks green.
+**Status:** Done — committed in `7bb71ab`.
 
 **What shipped:** Two changes in `src/peon.ts`:
 1. `stdio: ['pipe','pipe','pipe']` → `['pipe','ignore','ignore']`. Node no longer creates stdout/stderr pipes at all, so there is no buffer to fill and no silent-block-then-timeout cliff. This aligns the code with the existing JSDoc that already promised "ignore output."
@@ -31,6 +31,16 @@
 Tests: renamed the stdio assertion; added an escalation test (SIGTERM at 5s → SIGKILL at +1s) and a regression guard proving no SIGKILL fires when the child closes after SIGTERM.
 
 **Rationale:** piped-but-undrained stdout/stderr could block peon once the ~64KB pipe buffer fills, causing a mysterious 5s timeout kill with no root cause. A stuck peon ignoring `SIGTERM` would previously linger indefinitely; the escalation guarantees termination within ~6s.
+
+### 5b. Cross-platform session-id extraction
+
+**Status:** Done — in working tree (uncommitted).
+
+**What shipped:** Extracted pure `extractSessionName(sessionFile)` in `src/pi.ts` — takes the last path segment matching both `/` and `\` separators, then strips only the final extension (keeping `.pi` per the accepted design). `sessionIdFor` now delegates to it. A regex is used instead of `path.basename` because `path.basename` is platform-specific and would not parse Windows backslash paths when tests run on Linux CI.
+
+Tests: direct `extractSessionName` unit tests covering POSIX forward-slash, Windows backslash, and mixed-separator paths plus the undefined/empty/trailing-separator fallbacks.
+
+**Rationale:** `sessionIdFor` previously used `file.split('/').pop()`, Unix-only. `extractSessionName` is identical on POSIX and also handles `\` at zero runtime cost. Unlike 5a (below), this is a pure function fully testable on Linux CI — defensive robustness, not speculative platform code.
 
 ---
 
@@ -43,22 +53,7 @@ Open items from the code review. The following are intentionally omitted as rese
 - **Broadening `tool_execution_end` beyond `bash`** — PeonPing reserves `task.error` for command failures.
 - **Forwarding the real error text** — `peon.sh:5655` uses the `error` field only as a truthiness gate (`if error_msg and tool_name == 'Bash'`); the hardcoded `'bash failed'` is correct and avoids a falsy-result suppression bug.
 - **Verifying `tool_name: 'Bash'`** — `peon.sh:5655` explicitly checks `tool_name == 'Bash'`; the existing test already pins the value.
-
-## 5. Windows portability
-
-Two platform bugs:
-
-**5a. `resolveExecutable` misses `.exe` / `.cmd`:** On Windows, `peon` is distributed as `peon.exe` or `peon.cmd`; `join(dir, 'peon')` finds neither. `accessSync(X_OK)` is also unreliable on Windows (it mostly checks readability).
-
-**5b. `sessionIdFor` uses Unix-only path splitting:** `file.split('/').pop()` breaks on Windows backslash paths, falling through to the `randomUUID()` fallback every time — so `session_id` differs per event.
-
-**Tackle:**
-
-1. For 5b (fully testable on Linux): replace `file.split('/').pop()?.replace(…)` with `path.basename(file)` then strip the final extension (keep the `.pi` per the accepted design). Extract a pure `extractSessionName(sessionFile: string | undefined): string | undefined` and unit-test it with both `/a/b.pi.json` and `C:\a\b.pi.json` style inputs.
-2. For 5a: on `process.platform === 'win32'`, try candidate suffixes `['', '.exe', '.cmd', '.bat']` and use `accessSync(path, F_OK)` instead of `X_OK`. Hard to exercise on Linux CI — at minimum extract the candidate-suffix logic into a pure function and test it in isolation; gate the `win32` branch behind a platform check.
-3. Red: add the `extractSessionName` tests with backslash paths (they fail today).
-
-**Files:** `src/peon.ts`, `src/peon.test.ts`, `src/pi.ts`, `src/pi.test.ts`.
+- **5a. Windows `resolveExecutable` suffix probing (`.exe` / `.cmd`)** — speculative and unverifiable on Linux CI. The target audience (pi + PeonPing users on Windows) skews heavily toward WSL, where `peon` resolves as a POSIX executable and none of this code runs. Even if native-Windows demand exists, `install.ps1` ships `peon.cmd` (a batch wrapper) plus a bash `peon` shim — and `spawn(peonPath, …)` without `shell: true` cannot execute a `.cmd` file on Windows (post-CVE-2024-27980, `CreateProcess` rejects it with `spawn EINVAL`). So suffix resolution alone would be a half-fix: find `peon.cmd`, then fail to spawn it. A real native-Windows fix requires `shell: true` (with its own JSON-via-stdin quoting implications) and real Windows CI — not smuggled into a suffix list. Reverted; revisit only with a Windows environment and a confirmed native user.
 
 ---
 

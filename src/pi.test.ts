@@ -2,7 +2,7 @@ import type { SessionBeforeCompactEvent } from '@earendil-works/pi-coding-agent'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { emit, makeCtx, makePi } from '../test/helpers/fake-pi'
 import { makePeon } from '../test/helpers/fake-peon'
-import { registerPiHandlers } from './pi'
+import { extractSessionName, registerPiHandlers } from './pi'
 
 const randomUUID = vi.hoisted(() => vi.fn<() => `${string}-${string}-${string}-${string}-${string}`>())
 
@@ -243,6 +243,24 @@ describe('registerPiHandlers', () => {
 
       expect(peon.send).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('extractSessionName', () => {
+  it.each([
+    ['/tmp/sessions/specific-session.pi.json', 'specific-session.pi'],
+    ['/tmp/sessions/////specific-session.pi.json', 'specific-session.pi'],
+    ['simple-session', 'simple-session'],
+    ['readme.md', 'readme'],
+    ['C:\\a\\b.pi.json', 'b.pi'],
+    ['C:/a/b.pi.json', 'b.pi'],
+    ['C:\\sessions\\default.pi.json', 'default.pi'],
+  ])('%s -> %s', (sessionFile, expected) => {
+    expect(extractSessionName(sessionFile)).toBe(expected)
+  })
+
+  it.each([undefined, '', '/just/a/path/', '////', 'C:\\'])('returns undefined for %s', (sessionFile) => {
+    expect(extractSessionName(sessionFile)).toBeUndefined()
   })
 })
 
