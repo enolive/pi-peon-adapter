@@ -99,43 +99,43 @@ tail -f /tmp/pi-peon-debug.log
 | `session_start`
 | `SessionStart`
 | `session.start`
-| 🔔 plays
+| 🔔
 | Skips `reload`, `fork`, and contexts without UI. Uses `source=resume` for resume, otherwise `source=startup`.
 
 | `input`
 | `UserPromptSubmit`
 | `task.acknowledge` or `user.spam`
-| 🔔 plays
+| 🔔
 | Fires when user input is received.
 
 | `agent_end`
 | `Stop`
 | `task.complete`
-| 🔔 plays
+| 🔔
 | Sent when an agent turn ends.
 
 | `tool_execution_end`
 | `PostToolUseFailure`
 | `task.error`
-| 🔔 plays
+| 🔔
 | Only for failed bash executions: `isError=true` and `toolName=bash`.
 
 | `session_before_compact`
 | `PreCompact`
 | `resource.limit`
-| 🔔 plays
+| 🔔
 | Sent before compaction starts.
 
 | `session_shutdown`
 | `SessionEnd`
 | `session.end`
-| 🔇 silent
+| 🔇
 | Sent when the session runtime is shutting down. Cleanup only, PeonPing plays no sounds.
 
 | (not applicable)
 | `PermissionRequest`
 | `input.required`
-| 🔇 silent
+| 🔇
 | pi does not support this event, so peon never receives it.
 |===
 
