@@ -3,6 +3,14 @@
   "version": "1.0.1",
   "description": "pi extension adapter that maps lifecycle events to peon notifications",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/enolive/pi-peon-adapter.git"
+  },
+  "homepage": "https://github.com/enolive/pi-peon-adapter",
+  "bugs": {
+    "url": "https://github.com/enolive/pi-peon-adapter/issues"
+  },
   "main": "index.ts",
   "keywords": [
     "pi-package",
