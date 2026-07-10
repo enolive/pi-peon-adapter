@@ -11,6 +11,7 @@ This package is a pi extension adapter that maps pi lifecycle events to peon not
 - Keep tests explicit about where expected values come from. Avoid hidden defaults that make assertions look like magic.
 - Do not over-engineer diagnostics or test harnesses. Prefer the smallest boundary that proves the behavior.
 - Keep imports extensionless inside `src`, e.g. `import { registerPiHandlers } from './pi'`.
+- The main doc entrypoint for this project is `README.adoc`. A `README.md` is just auto-generated and should not be edited.
 
 ## Runtime behavior
 
@@ -37,3 +38,36 @@ This package is a pi extension adapter that maps pi lifecycle events to peon not
 - Use existing `test/helpers/` for unit tests. Ask the user if you detect something that should go there.
 - Integration tests should mock as little as possible. Prefer real temp executables and real `spawn` when testing
   wiring.
+
+## Development commands
+
+Run these before handing off changes:
+
+```bash
+npm run format:check
+npm run typecheck
+npm run lint
+npm test
+```
+
+Use formatting when needed:
+
+```bash
+npm run format
+```
+
+## Publishing
+
+To release a new version (human-only, do not run automatically):
+
+```bash
+npm run release
+```
+
+This bumps the version in `package.json`, creates a git tag, and pushes both. The publish workflow automatically publishes to npm when a `v*` tag is pushed.
+
+## Package notes
+
+Published files are controlled by `.npmignore` (npm uses its default ignores plus any rules listed there). Test files are excluded automatically.
+
+Runtime dependencies belong in `dependencies`; development-only tools belong in `devDependencies`. Pi-provided packages such as `@earendil-works/pi-coding-agent` should stay in `peerDependencies` with a `"*"` range.

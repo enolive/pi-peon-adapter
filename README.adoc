@@ -9,6 +9,8 @@ endif::[]
 
 = pi-peon-adapter
 
+image:https://img.shields.io/npm/v/pi-peon-adapter.svg[npm version, link=https://www.npmjs.com/package/pi-peon-adapter]
+
 A small pi extension that forwards selected pi lifecycle events to the `peon` executable from the https://www.peonping.com[PeonPing] project.
 
 PeonPing can then play sounds for events such as submitted prompts, failed bash commands, and completed agent turns.
@@ -36,8 +38,8 @@ Install and configure it to your liking!
 
 [source,shell]
 ----
-# NPM (later)
-# pi install npm:pi-peon-adapter
+# NPM
+pi install npm:pi-peon-adapter
 # GitHub
 pi install git:github.com/enolive/pi-peon-adapter
 ----
@@ -93,27 +95,31 @@ tail -f /tmp/pi-peon-debug.log
 
 | `session_start`
 | `SessionStart`
-| Skips `reload`, `fork`, and contexts without UI. Uses `source=resume` for resume, otherwise `source=startup`.
+| Skips `reload`, `fork`, and contexts without UI. Uses `source=resume` for resume, otherwise `source=startup`. 🔔 plays sound
 
 | `input`
 | `UserPromptSubmit`
-| Fires when user input is received, before agent execution.
+| Fires when user input is received. 🔔 plays sound based on peon config (`task.acknowledge` or `user.spam` if spamming).
 
 | `agent_end`
 | `Stop`
-| Sent when an agent turn ends.
+| Sent when an agent turn ends. 🔔 plays sound
 
 | `tool_execution_end`
 | `PostToolUseFailure`
-| Only for failed bash executions: `isError=true` and `toolName=bash`.
+| Only for failed bash executions: `isError=true` and `toolName=bash`. 🔔 plays sound
 
 | `session_before_compact`
 | `PreCompact`
-| Sent before compaction starts.
+| Sent before compaction starts. 🔔 plays sound — "Context compacting" with red indicator.
 
 | `session_shutdown`
 | `SessionEnd`
-| Sent when the session runtime is shutting down.
+| Sent when the session runtime is shutting down. Silent -- cleanup only, no notification.
+
+| (not applicable)
+| PermissionRequest
+| pi does not fire this event, so peon never receives it. Peon supports `PermissionRequest` but there's no corresponding pi event to trigger it.
 |===
 
 Every payload includes `cwd` and a `session_id` prefixed with `pi-`.
