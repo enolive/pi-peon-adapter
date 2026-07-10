@@ -1,5 +1,21 @@
 # Review Action Points
 
+## Tackled
+
+### 1. `Stop` maps to `agent_settled`, not `agent_end`
+
+**Status:** Done — PR on branch `fix/use-aggent-settled` (enolive/pi-peon-adapter).
+
+**What shipped:** `pi.on('agent_end', …)` → `pi.on('agent_settled', …)` in `src/pi.ts`; tests, integration, and the README event-mapping row updated.
+
+**Version requirement:** `agent_settled` was introduced in pi `0.80.5`. The devDependency range `^0.80.3` was resolved up to `0.80.6` in the lockfile. `peerDependencies` stays `"*"` per `AGENTS.md` policy, so users on pi `≤ 0.80.3` will silently get no `Stop` sound (the handler registers against a non-existent event and never fires) — graceful degradation, not a crash. This is called out in the PR.
+
+**Rationale:** `agent_end` fires once per agent-loop iteration; auto-retry and overflow-compaction-then-retry cause duplicate "task complete" sounds. `agent_settled` fires exactly once after the run has fully settled.
+
+---
+
+## Open
+
 Open items from the code review. The following are intentionally omitted as researched-and-closed or deliberate wontfixes:
 
 - **Shutdown-time delivery** — fire-and-forget survives parent exit in practice.
@@ -7,19 +23,6 @@ Open items from the code review. The following are intentionally omitted as rese
 - **Broadening `tool_execution_end` beyond `bash`** — PeonPing reserves `task.error` for command failures.
 - **Forwarding the real error text** — `peon.sh:5655` uses the `error` field only as a truthiness gate (`if error_msg and tool_name == 'Bash'`); the hardcoded `'bash failed'` is correct and avoids a falsy-result suppression bug.
 - **Verifying `tool_name: 'Bash'`** — `peon.sh:5655` explicitly checks `tool_name == 'Bash'`; the existing test already pins the value.
-
-## 1. `Stop` should map to `agent_settled`, not `agent_end`
-
-**Problem:** `agent_end` fires once per agent-loop iteration, not once per user-visible task. Auto-retry (retryable errors) and overflow-compaction-then-retry both cause `agent_end` to fire multiple times for a single prompt, so PeonPing plays the "task complete" sound more than once. `agent_settled` is the event that fires exactly once after the run has fully settled (no further retry / compaction / continuation).
-
-**Tackle:**
-
-1. Red: in `src/pi.test.ts`, add a test that emits `agent_end` and asserts `peon.send` is **not** called, then emits `agent_settled` and asserts a single `Stop` payload.
-2. Green: in `src/pi.ts`, change `pi.on('agent_end', …)` to `pi.on('agent_settled', …)`. `AgentSettledEvent` is `{ type: 'agent_settled' }` (no `messages`), and the current handler does not read `messages`, so it is a clean swap.
-3. The handler-registration count test still expects 6 handlers, but one is now `agent_settled` — update the `toHaveBeenCalledWith('agent_end', …)` assertion.
-4. Update the README event-mapping table row: `agent_end` → `agent_settled`.
-
-**Files:** `src/pi.ts`, `src/pi.test.ts`, `README.adoc`.
 
 ## 3. Guard `input` on `hasUI`
 
