@@ -78,7 +78,7 @@ When debug logging is not configured, the adapter stays silent except for startu
 
 [source,bash]
 ----
-# will produce a simple log to the given path
+# will produce a simple log in the given path
 export PI_PEON_ADAPTER_DEBUG_LOG=/tmp/pi-peon-debug.log
 pi
 
