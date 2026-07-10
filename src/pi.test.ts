@@ -63,7 +63,7 @@ describe('registerPiHandlers', () => {
         images: [],
         source: 'interactive',
       },
-      ctx(cwd, session)
+      ctx(cwd, session),
     )
 
     expect(peon.send).toHaveBeenCalledWith({
@@ -102,7 +102,7 @@ describe('registerPiHandlers', () => {
         result: 'failed',
         isError: true,
       },
-      ctx(cwd, session)
+      ctx(cwd, session),
     )
 
     expect(peon.send).toHaveBeenCalledWith({
@@ -125,7 +125,7 @@ describe('registerPiHandlers', () => {
       {
         type: 'session_before_compact',
       } as SessionBeforeCompactEvent,
-      ctx(cwd, session)
+      ctx(cwd, session),
     )
 
     expect(peon.send).toHaveBeenCalledWith({
@@ -182,7 +182,7 @@ describe('registerPiHandlers', () => {
       await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
 
       expect(peon.send).toHaveBeenCalledWith(
-        expect.objectContaining({ session_id: 'pi-00000000-0000-4000-8000-000000000000' })
+        expect.objectContaining({ session_id: 'pi-00000000-0000-4000-8000-000000000000' }),
       )
     })
   })

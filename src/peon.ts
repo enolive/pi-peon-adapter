@@ -113,7 +113,7 @@ function logPeonEvent(
   level: 'info' | 'warn' | 'error',
   peonPath: string,
   payload: HookPayload,
-  fields: Record<string, DebugLogValue>
+  fields: Record<string, DebugLogValue>,
 ): void {
   debugLogFields(level, {
     peon_path: peonPath,

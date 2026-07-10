@@ -120,7 +120,7 @@ function logSkip(
   event: { type: string },
   ctx: ExtensionContext,
   reason: string,
-  fields: Record<string, DebugLogValue> = {}
+  fields: Record<string, DebugLogValue> = {},
 ): void {
   debugLogFields('warn', { hook: event.type, decision: 'skip', reason, cwd: ctx.cwd, ...fields })
 }

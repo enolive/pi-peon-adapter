@@ -22,7 +22,7 @@ export async function createCaptureExecutable(dir: string, name: string): Promis
     `#!/bin/sh
 cat >> ${shellQuote(payloadPath)}
 printf '\n' >> ${shellQuote(payloadPath)}
-`
+`,
   )
   return { path: executablePath, payloadPath }
 }

@@ -36,7 +36,7 @@ describe('pi peon adapter integration', () => {
         images: [],
         source: 'interactive',
       },
-      ctx
+      ctx,
     )
     await waitForPayloads(peon.payloadPath, ++events)
     await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
@@ -51,7 +51,7 @@ describe('pi peon adapter integration', () => {
         result: 'failed',
         isError: true,
       },
-      ctx
+      ctx,
     )
     const finalPayloads = await waitForPayloads(peon.payloadPath, ++events)
 
@@ -75,7 +75,7 @@ describe('pi peon adapter integration', () => {
         result: 'failed',
         isError: true,
       },
-      ctx
+      ctx,
     )
     await emit(
       handlers,
@@ -87,7 +87,7 @@ describe('pi peon adapter integration', () => {
         result: 'failed',
         isError: true,
       },
-      ctx
+      ctx,
     )
     await waitForPayloads(peon.payloadPath, 2)
 

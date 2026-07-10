@@ -40,7 +40,7 @@ export async function emit<TEvent extends EventName>(
   handlers: HandlerMap,
   eventName: TEvent,
   event: EventFor<TEvent>,
-  ctx = makeCtx()
+  ctx = makeCtx(),
 ): Promise<void> {
   await registeredHandler(handlers, eventName)(event, ctx)
 }

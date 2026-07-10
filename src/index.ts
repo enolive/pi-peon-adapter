@@ -8,7 +8,7 @@ export default function (pi: Pick<ExtensionAPI, 'on'>) {
   const peonPath = resolveExecutable(peonBin)
   if (!peonPath) {
     console.warn(
-      `peon-ping: \`${peonBin}\` not found on PATH. Install it (https://github.com/PeonPing/peon-ping) or set $PEON_BIN. Extension disabled.`
+      `peon-ping: \`${peonBin}\` not found on PATH. Install it (https://github.com/PeonPing/peon-ping) or set $PEON_BIN. Extension disabled.`,
     )
     return
   }
