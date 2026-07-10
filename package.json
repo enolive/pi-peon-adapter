@@ -1,6 +1,6 @@
 {
   "name": "pi-peon-adapter",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "pi extension adapter that maps lifecycle events to peon notifications",
   "type": "module",
   "repository": {
