@@ -58,10 +58,12 @@ npm run format
 
 ## Publishing
 
-Releasing a new version and publishing to npm are human-only tasks. Do not run the
-release script or any variant of it (including with flags such as `--dry-run`),
-and do not run `npm publish`, under any circumstances. Ask the user to run these
-themselves.
+Releasing a new version is a human-only task. Do not run the release script under
+any circumstances, including with extra flags — ask the user to run it
+themselves. `npm run release` prompts for a `y/N` confirmation before bumping
+the version, tagging, and pushing; do not answer that prompt on the user's
+behalf. Publishing to npm itself is a separate manual step and is not
+automated by CI.
 
 ## Package notes
 
