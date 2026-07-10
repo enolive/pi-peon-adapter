@@ -102,7 +102,7 @@ async function startDefaultSession() {
 
   const { pi, handlers } = makePi()
   const cwd = '/integration/project'
-  const ctx = makeCtx(cwd, '/sessions/default-session.json')
+  const ctx = makeCtx({ cwd, session: '/sessions/default-session.json' })
 
   extension(pi)
 

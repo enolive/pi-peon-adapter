@@ -12,6 +12,14 @@
 
 **Rationale:** `agent_end` fires once per agent-loop iteration; auto-retry and overflow-compaction-then-retry cause duplicate "task complete" sounds. `agent_settled` fires exactly once after the run has fully settled.
 
+### 3. Guard `input` on `hasUI`
+
+**Status:** Implemented in working tree (uncommitted); tests + all pre-handoff checks green.
+
+**What shipped:** Added `if (!ctx.hasUI) { logSkip(event, ctx, 'no_ui'); return }` to the `input` handler in `src/pi.ts`, mirroring the existing `session_start` guard. Tests: the single `interactive`-only `input` test was replaced with a parameterized 3-source preservation test (`interactive`, `rpc`, `extension`) that locks in ACP (`source: "rpc"`) forwarding under `hasUI: true`, plus a `hasUI: false` skip test.
+
+**Rationale:** `input` forwarded every source as `UserPromptSubmit`, including headless `pi -p "…"` / `pi --json` runs where no human hears the sound. Filtering by `InputEvent.source` would be wrong — `source: "rpc"` covers both programmatic RPC and ACP-driven input (human in Zed/IDEA via pi-acp), so a source filter would silently kill the prompt sound for IDE users. `ctx.hasUI` is `true` in TUI and RPC modes (ACP included), `false` in print/json — exactly the "is there a human to hear this?" axis, and consistent with the existing `session_start` idiom. No README change needed.
+
 ---
 
 ## Open
@@ -23,20 +31,6 @@ Open items from the code review. The following are intentionally omitted as rese
 - **Broadening `tool_execution_end` beyond `bash`** — PeonPing reserves `task.error` for command failures.
 - **Forwarding the real error text** — `peon.sh:5655` uses the `error` field only as a truthiness gate (`if error_msg and tool_name == 'Bash'`); the hardcoded `'bash failed'` is correct and avoids a falsy-result suppression bug.
 - **Verifying `tool_name: 'Bash'`** — `peon.sh:5655` explicitly checks `tool_name == 'Bash'`; the existing test already pins the value.
-
-## 3. Guard `input` on `hasUI`
-
-**Problem:** `input` currently forwards every source as `UserPromptSubmit`, including headless `pi -p "…"` and `pi --json` invocations where no human is present to hear the sound. The naive fix — filtering by `InputEvent.source` — is wrong: `source: "rpc"` covers both programmatic RPC and ACP-driven input (a human typing in Zed/IDEA via pi-acp), so a source filter would silently suppress the prompt sound for every IDE user. `source` cannot distinguish those two cases.
-
-`ctx.hasUI` can. It is `true` in TUI and RPC modes (ACP included) and `false` in print/json modes — exactly the axis that matters for audio: *is there a human-facing UI that could hear the sound?* `session_start` already gates on this (`if (!ctx.hasUI) { logSkip(event, ctx, 'no_ui'); return }`), so applying the same guard to `input` is consistent with the existing idiom rather than introducing a new filter concept.
-
-**Tackle:**
-
-1. Red: in `src/pi.test.ts`, emit `input` against a context with `hasUI: false` and assert `peon.send` is **not** called; emit it with `hasUI: true` and assert a `UserPromptSubmit` payload. Cover all three `source` values under `hasUI: true` to lock in that ACP (`source: "rpc"`) is preserved.
-2. Green: in `src/pi.ts`, add the same `if (!ctx.hasUI) { logSkip(event, ctx, 'no_ui'); return }` guard at the top of the `input` handler that `session_start` uses.
-3. No README change needed — the `input` row's "Fires when user input is received" still reads correctly.
-
-**Files:** `src/pi.ts`, `src/pi.test.ts`.
 
 ## 4. Drain child stdio and escalate `SIGTERM` → `SIGKILL`
 

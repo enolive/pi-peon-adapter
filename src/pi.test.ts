@@ -49,10 +49,35 @@ describe('registerPiHandlers', () => {
     })
   })
 
-  it('maps input to UserPromptSubmit', async () => {
+  describe('maps input to UserPromptSubmit for sources with UI', () => {
+    it.each(['interactive', 'rpc', 'extension'] as const)('%s', async (source) => {
+      const { handlers, peon } = setup()
+      const cwd = '/prompt/project'
+      const session = 'prompt-session'
+
+      await emit(
+        handlers,
+        'input',
+        {
+          type: 'input',
+          text: 'hello',
+          images: [],
+          source,
+        },
+        ctx(cwd, session),
+      )
+
+      expect(peon.send).toHaveBeenCalledWith({
+        hook_event_name: 'UserPromptSubmit',
+        session_id: `pi-${session}`,
+        cwd,
+      })
+    })
+  })
+
+  it('skips input when UI is unavailable', async () => {
     const { handlers, peon } = setup()
-    const cwd = '/prompt/project'
-    const session = 'prompt-session'
+    const ctx = makeCtx({ hasUI: false })
 
     await emit(
       handlers,
@@ -63,14 +88,10 @@ describe('registerPiHandlers', () => {
         images: [],
         source: 'interactive',
       },
-      ctx(cwd, session),
+      ctx,
     )
 
-    expect(peon.send).toHaveBeenCalledWith({
-      hook_event_name: 'UserPromptSubmit',
-      session_id: `pi-${session}`,
-      cwd,
-    })
+    expect(peon.send).not.toHaveBeenCalled()
   })
 
   it('maps agent_end to Stop', async () => {
@@ -153,7 +174,7 @@ describe('registerPiHandlers', () => {
     const { handlers, peon } = setup()
     const cwd = '/explicit/project'
 
-    await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, makeCtx(cwd))
+    await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, makeCtx({ cwd }))
 
     expect(peon.send).toHaveBeenCalledWith(expect.objectContaining({ cwd }))
   })
@@ -166,7 +187,7 @@ describe('registerPiHandlers', () => {
       ['readme.md', 'pi-readme'],
     ])('%s -> %s', async (sessionFile, expected) => {
       const { handlers, peon } = setup()
-      const ctx = makeCtx('/work/project', sessionFile)
+      const ctx = makeCtx({ cwd: '/work/project', session: sessionFile })
 
       await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
 
@@ -177,7 +198,7 @@ describe('registerPiHandlers', () => {
   describe('uses a pi-prefixed fallback session id when no valid session file exists', () => {
     it.each([undefined, '', '/just/a/path/', '////'])('%s -> %s', async (sessionFile) => {
       const { handlers, peon } = setup()
-      const ctx = makeCtx('/work/project', sessionFile)
+      const ctx = makeCtx({ cwd: '/work/project', session: sessionFile })
 
       await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
 
@@ -199,8 +220,7 @@ describe('registerPiHandlers', () => {
 
   it('skips session_start when UI is unavailable', async () => {
     const { handlers, peon } = setup()
-    const ctx = makeCtx()
-    ctx.hasUI = false
+    const ctx = makeCtx({ hasUI: false })
 
     await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, ctx)
 
@@ -234,5 +254,5 @@ function setup() {
 }
 
 function ctx(cwd: string, session: string) {
-  return makeCtx(cwd, `/sessions/${session}.json`)
+  return makeCtx({ cwd, session: `/sessions/${session}.json` })
 }

@@ -47,6 +47,10 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink)
 
   pi.on('input', (event, ctx) => {
     logReceived(event, ctx, { source: event.source })
+    if (!ctx.hasUI) {
+      logSkip(event, ctx, 'no_ui')
+      return
+    }
     const payload = basePayload(ctx, 'UserPromptSubmit')
     peon.send(payload)
   })
