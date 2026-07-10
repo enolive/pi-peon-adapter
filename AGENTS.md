@@ -11,7 +11,7 @@ This package is a pi extension adapter that maps pi lifecycle events to peon not
 - Keep tests explicit about where expected values come from. Avoid hidden defaults that make assertions look like magic.
 - Do not over-engineer diagnostics or test harnesses. Prefer the smallest boundary that proves the behavior.
 - Keep imports extensionless inside `src`, e.g. `import { registerPiHandlers } from './pi'`.
-- The main doc entrypoint for this project is `README.adoc`. A `README.md` is just auto-generated and should not be edited.
+- The main doc entrypoint for this project is `README.adoc`. A *README.md* is just auto-generated and should not be edited.
 
 ## Runtime behavior
 
