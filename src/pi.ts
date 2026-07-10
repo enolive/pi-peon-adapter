@@ -51,7 +51,7 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink)
     peon.send(payload)
   })
 
-  pi.on('agent_end', (event, ctx) => {
+  pi.on('agent_settled', (event, ctx) => {
     logReceived(event, ctx)
     const payload = basePayload(ctx, 'Stop')
     peon.send(payload)

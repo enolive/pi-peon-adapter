@@ -39,7 +39,7 @@ describe('pi peon adapter integration', () => {
       ctx,
     )
     await waitForPayloads(peon.payloadPath, ++events)
-    await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
+    await emit(handlers, 'agent_settled', { type: 'agent_settled' }, ctx)
     await waitForPayloads(peon.payloadPath, ++events)
     await emit(
       handlers,
