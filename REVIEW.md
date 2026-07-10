@@ -20,6 +20,18 @@
 
 **Rationale:** `input` forwarded every source as `UserPromptSubmit`, including headless `pi -p "…"` / `pi --json` runs where no human hears the sound. Filtering by `InputEvent.source` would be wrong — `source: "rpc"` covers both programmatic RPC and ACP-driven input (human in Zed/IDEA via pi-acp), so a source filter would silently kill the prompt sound for IDE users. `ctx.hasUI` is `true` in TUI and RPC modes (ACP included), `false` in print/json — exactly the "is there a human to hear this?" axis, and consistent with the existing `session_start` idiom. No README change needed.
 
+### 4. Drain child stdio and escalate `SIGTERM` → `SIGKILL`
+
+**Status:** Implemented in working tree (uncommitted); tests + all pre-handoff checks green.
+
+**What shipped:** Two changes in `src/peon.ts`:
+1. `stdio: ['pipe','pipe','pipe']` → `['pipe','ignore','ignore']`. Node no longer creates stdout/stderr pipes at all, so there is no buffer to fill and no silent-block-then-timeout cliff. This aligns the code with the existing JSDoc that already promised "ignore output."
+2. SIGKILL escalation: the 5s `SIGTERM` timeout handler now arms a second ~1s timer that sends `SIGKILL` if the child still hasn't exited. Both timers are cleared on `close`/`error`. `clearTimeout(undefined)` is a safe no-op, so no conditional guards are needed.
+
+Tests: renamed the stdio assertion; added an escalation test (SIGTERM at 5s → SIGKILL at +1s) and a regression guard proving no SIGKILL fires when the child closes after SIGTERM.
+
+**Rationale:** piped-but-undrained stdout/stderr could block peon once the ~64KB pipe buffer fills, causing a mysterious 5s timeout kill with no root cause. A stuck peon ignoring `SIGTERM` would previously linger indefinitely; the escalation guarantees termination within ~6s.
+
 ---
 
 ## Open
@@ -31,19 +43,6 @@ Open items from the code review. The following are intentionally omitted as rese
 - **Broadening `tool_execution_end` beyond `bash`** — PeonPing reserves `task.error` for command failures.
 - **Forwarding the real error text** — `peon.sh:5655` uses the `error` field only as a truthiness gate (`if error_msg and tool_name == 'Bash'`); the hardcoded `'bash failed'` is correct and avoids a falsy-result suppression bug.
 - **Verifying `tool_name: 'Bash'`** — `peon.sh:5655` explicitly checks `tool_name == 'Bash'`; the existing test already pins the value.
-
-## 4. Drain child stdio and escalate `SIGTERM` → `SIGKILL`
-
-**Problem:** `spawn(…, { stdio: ['pipe','pipe','pipe'] })` pipes stdout/stderr but never reads them. If `peon` writes enough to fill the ~64KB pipe buffer, the child blocks, the 5s timer fires, and the only log is a `timeout_kill` with no root cause. Also, `SIGTERM` has no `SIGKILL` escalation, so a stuck peon lingers.
-
-**Tackle:**
-
-1. Simplest drain fix: `stdio: ['pipe', 'ignore', 'ignore']` (discards peon's output). If you want failure visibility, instead attach discard listeners or pipe stderr to the parent only when debug logging is on.
-2. Escalation: after `child.kill('SIGTERM')`, set a second timer (~1000ms) that calls `child.kill('SIGKILL')` if the child is still alive. Clear both timers on `close` / `error`.
-3. Red: extend the existing `peon.test.ts` timeout test — after `SIGTERM`, advance timers past the escalation window and assert `kill` is called a second time with `'SIGKILL'`. Update the spawn-call assertion if the `stdio` option changes.
-4. Note: the `makeChildProcess` helper uses `PassThrough` streams (auto-drain), so the drain itself is hard to unit-test; the escalation test is the concrete TDD handle.
-
-**Files:** `src/peon.ts`, `src/peon.test.ts`.
 
 ## 5. Windows portability
 

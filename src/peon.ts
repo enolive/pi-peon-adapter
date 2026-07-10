@@ -54,7 +54,7 @@ function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
   let child: ReturnType<typeof spawn>
   try {
     child = spawn(peonPath, [], {
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['pipe', 'ignore', 'ignore'],
     })
   } catch (error) {
     logPeonEvent('error', peonPath, payload, {
@@ -64,9 +64,16 @@ function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
     return
   }
 
+  // Grace period for peon to finish: SIGTERM at 5s, then SIGKILL at 6s if it
+  // still hasn't exited. Both timers are cleared on close/error below.
+  let escalation: ReturnType<typeof setTimeout> | undefined
   const timeout = setTimeout(() => {
     logPeonEvent('warn', peonPath, payload, { decision: 'timeout_kill' })
     child.kill('SIGTERM')
+    escalation = setTimeout(() => {
+      logPeonEvent('warn', peonPath, payload, { decision: 'timeout_kill_escalate' })
+      child.kill('SIGKILL')
+    }, 1000)
   }, 5000)
 
   child.on('error', (error) => {
@@ -75,10 +82,12 @@ function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
       error: getErrorMessage(error),
     })
     clearTimeout(timeout)
+    clearTimeout(escalation)
   })
 
   child.on('close', (code, signal) => {
     clearTimeout(timeout)
+    clearTimeout(escalation)
     if (code === 0) {
       // don't log successful exits
       return
