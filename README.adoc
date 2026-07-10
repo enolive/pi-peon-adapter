@@ -118,7 +118,7 @@ tail -f /tmp/pi-peon-debug.log
 | `PostToolUseFailure`
 | `task.error`
 | 🔔
-| Only for failed bash executions: `isError=true` and `toolName=bash`.
+| Only for failed bash executions: `isError=true` and `toolName=bash`. Scoping to `bash` is deliberate: PeonPing reserves `task.error` for command failures, not tool errors in general.
 
 | `session_before_compact`
 | `PreCompact`
