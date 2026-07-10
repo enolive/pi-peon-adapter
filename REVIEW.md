@@ -34,13 +34,15 @@ Tests: renamed the stdio assertion; added an escalation test (SIGTERM at 5s → 
 
 ### 5b. Cross-platform session-id extraction
 
-**Status:** Done — in working tree (uncommitted).
+**Status:** Done — committed in `77c0408`.
 
 **What shipped:** Extracted pure `extractSessionName(sessionFile)` in `src/pi.ts` — takes the last path segment matching both `/` and `\` separators, then strips only the final extension (keeping `.pi` per the accepted design). `sessionIdFor` now delegates to it. A regex is used instead of `path.basename` because `path.basename` is platform-specific and would not parse Windows backslash paths when tests run on Linux CI.
 
 Tests: direct `extractSessionName` unit tests covering POSIX forward-slash, Windows backslash, and mixed-separator paths plus the undefined/empty/trailing-separator fallbacks.
 
-**Rationale:** `sessionIdFor` previously used `file.split('/').pop()`, Unix-only. `extractSessionName` is identical on POSIX and also handles `\` at zero runtime cost. Unlike 5a (below), this is a pure function fully testable on Linux CI — defensive robustness, not speculative platform code.
+**Rationale:** `sessionIdFor` previously used `file.split('/').pop()`, Unix-only. On Windows native, `getSessionFile()` returns backslash paths (verified in pi source: `session-manager.js` sets `this.sessionFile` via `resolvePath()` / `path.join()`, both platform-specific, with no `/`-normalization applied to the stored value). For a path like `C:\Users\name\.pi\sessions\foo.jsonl`, `split('/').pop()` returns the entire string, so after stripping the extension the adapter would send `pi-C:\Users\name\.pi\sessions\foo` — a garbage `session_id` leaking the full backslash path to peon, not (as originally claimed) a per-event UUID fallback. `extractSessionName` is identical on POSIX and also handles `\` at zero runtime cost. Unlike 5a, this is a pure function fully testable on Linux CI — defensive robustness, not speculative platform code.
+
+**Caveat:** the bug is verified for native Windows only. Under WSL, pi runs under Linux Node → `path.resolve()` produces forward slashes → `split('/').pop()` works → no bug. No confirmed native-Windows pi + peon user exists yet, so practical impact remains unverified; the fix is low-risk and fully tested regardless.
 
 ---
 
