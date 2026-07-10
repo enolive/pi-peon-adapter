@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { rememberEnv, type RememberedEnv } from '../test/helpers/env'
 import { createTempDirectory, type TempDirectory } from '../test/helpers/temp-directory'
-import { debugLog, debugLogFields, getErrorMessage } from './diagnostics'
+import { debugLog, debugLogFields, getErrorMessage, getLogStatus } from './diagnostics'
 
 describe('diagnostics', () => {
   let env: RememberedEnv
@@ -18,6 +18,23 @@ describe('diagnostics', () => {
   afterEach(async () => {
     env.restore()
     await tempDirectory.clean()
+  })
+
+  it('reports disabled when log path is not set', () => {
+    delete process.env.PI_PEON_ADAPTER_DEBUG_LOG
+
+    const status = getLogStatus()
+
+    expect(status).toEqual({ enabled: false })
+  })
+
+  it('reports enabled when log path is set', () => {
+    const logPath = '/tmp/pi-log-path/debug.log'
+    process.env.PI_PEON_ADAPTER_DEBUG_LOG = logPath
+
+    const status = getLogStatus()
+
+    expect(status).toEqual({ enabled: true, logPath })
   })
 
   it('does not write when debug log path is unset', () => {

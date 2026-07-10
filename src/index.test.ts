@@ -33,9 +33,24 @@ describe('extension entrypoint control flow', () => {
     extension(pi)
 
     expect(resolveExecutable).toHaveBeenCalledWith('missing-peon')
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('missing-peon'))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('`missing-peon` not found on PATH'))
     expect(createPeonSink).not.toHaveBeenCalled()
     expect(registerPiHandlers).not.toHaveBeenCalled()
+  })
+
+  it('warns when debug log is activated', () => {
+    const logPath = '/tmp/pi-peon-adapter/debug.log'
+    process.env.PI_PEON_ADAPTER_DEBUG_LOG = logPath
+    const peon = makePeon()
+    loadExtension({
+      resolvedPath: '/usr/bin/peon',
+      peon,
+    })
+    const { pi } = makePi()
+
+    extension(pi)
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(`debug log is active and will be written to ${logPath}`))
   })
 
   it('creates a peon sink and registers pi handlers when peon resolves', () => {

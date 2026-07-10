@@ -3,28 +3,40 @@ import { appendFileSync } from 'node:fs'
 export type DebugLogLevel = 'info' | 'warn' | 'error'
 export type DebugLogValue = string | number | boolean | undefined | null
 
+export type DebugLogStatus =
+  | {
+      enabled: true
+      logPath: string
+    }
+  | { enabled: false }
+
 let currentLogPath: string | undefined
 let disabledLogPath: string | undefined
 
 export function debugLog(level: DebugLogLevel, message: string): void {
-  const logPath = process.env.PI_PEON_ADAPTER_DEBUG_LOG?.trim()
-  if (!logPath) {
+  const status = getLogStatus()
+  if (!status.enabled) {
     return
   }
 
-  if (logPath !== currentLogPath) {
-    currentLogPath = logPath
+  if (status.logPath !== currentLogPath) {
+    currentLogPath = status.logPath
     disabledLogPath = undefined
   }
-  if (disabledLogPath === logPath) {
+  if (disabledLogPath === status.logPath) {
     return
   }
 
   try {
-    appendFileSync(logPath, `${new Date().toISOString()} [${level}] ${message}\n`, 'utf8')
+    appendFileSync(status.logPath, `${new Date().toISOString()} [${level}] ${message}\n`, 'utf8')
   } catch {
-    disabledLogPath = logPath
+    disabledLogPath = status.logPath
   }
+}
+
+export function getLogStatus(): DebugLogStatus {
+  const logPath = process.env.PI_PEON_ADAPTER_DEBUG_LOG?.trim()
+  return logPath ? { enabled: true, logPath } : { enabled: false }
 }
 
 export function debugLogFields(level: DebugLogLevel, fields: Record<string, DebugLogValue>): void {
