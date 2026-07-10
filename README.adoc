@@ -9,7 +9,7 @@ endif::[]
 
 = pi-peon-adapter
 
-image:https://img.shields.io/npm/v/pi-peon-adapter.svg[npm version, link=https://www.npmjs.com/package/pi-peon-adapter]
+image:https://img.shields.io/npm/v/pi-peon-adapter.svg[npm version,link=https://www.npmjs.com/package/pi-peon-adapter]
 
 A small pi extension that forwards selected pi lifecycle events to the `peon` executable from the https://www.peonping.com[PeonPing] project.
 
@@ -72,7 +72,8 @@ NOTE: If the executable is not found, this extension will display a startup warn
 export PEON_BIN=/path/to/your/peon
 ----
 
-Set `PI_PEON_ADAPTER_DEBUG_LOG` to enable debug logging. This is useful when analyzing or reporting a bug.
+Set `PI_PEON_ADAPTER_DEBUG_LOG` to enable debug logging.
+This is useful when analyzing or reporting a bug.
 When debug logging is not configured, the adapter stays silent except for startup warnings such as a missing `peon` executable.
 
 [source,bash]
@@ -87,42 +88,60 @@ tail -f /tmp/pi-peon-debug.log
 
 == Event mapping
 
-[cols="1,1,2",options="header"]
+[cols="1,1,1,1,2",options="header"]
 |===
 | pi event
 | PeonPing hook event
+| https://github.com/PeonPing/openpeon/blob/main/spec/cesp-v1.md[CESP category]
+| Sound
 | notes
 
 | `session_start`
 | `SessionStart`
-| Skips `reload`, `fork`, and contexts without UI. Uses `source=resume` for resume, otherwise `source=startup`. 🔔 plays sound
+| `session.start`
+| 🔔 plays
+| Skips `reload`, `fork`, and contexts without UI. Uses `source=resume` for resume, otherwise `source=startup`.
 
 | `input`
 | `UserPromptSubmit`
-| Fires when user input is received. 🔔 plays sound based on peon config (`task.acknowledge` or `user.spam` if spamming).
+| `task.acknowledge` or `user.spam`
+| 🔔 plays
+| Fires when user input is received.
 
 | `agent_end`
 | `Stop`
-| Sent when an agent turn ends. 🔔 plays sound
+| `task.complete`
+| 🔔 plays
+| Sent when an agent turn ends.
 
 | `tool_execution_end`
 | `PostToolUseFailure`
-| Only for failed bash executions: `isError=true` and `toolName=bash`. 🔔 plays sound
+| `task.error`
+| 🔔 plays
+| Only for failed bash executions: `isError=true` and `toolName=bash`.
 
 | `session_before_compact`
 | `PreCompact`
-| Sent before compaction starts. 🔔 plays sound — "Context compacting" with red indicator.
+| `resource.limit`
+| 🔔 plays
+| Sent before compaction starts.
 
 | `session_shutdown`
 | `SessionEnd`
-| Sent when the session runtime is shutting down. Silent -- cleanup only, no notification.
+| `session.end`
+| 🔇 silent
+| Sent when the session runtime is shutting down. Cleanup only, PeonPing plays no sounds.
 
 | (not applicable)
-| PermissionRequest
-| pi does not fire this event, so peon never receives it. Peon supports `PermissionRequest` but there's no corresponding pi event to trigger it.
+| `PermissionRequest`
+| `input.required`
+| 🔇 silent
+| pi does not support this event, so peon never receives it.
 |===
 
 Every payload includes `cwd` and a `session_id` prefixed with `pi-`.
+
+TIP: You can turn individual CESP categories on and off to your likings in https://github.com/PeonPing/openpeon/blob/main/spec/cesp-v1.md[PeonPing's Configuration].
 
 == Commands
 
