@@ -15,7 +15,7 @@ describe('extension entrypoint control flow', () => {
   let warn: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
-    env = rememberEnv('PEON_BIN')
+    env = rememberEnv('PEON_BIN', 'PI_PEON_ADAPTER_DEBUG_LOG')
     warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   })
 
@@ -51,6 +51,20 @@ describe('extension entrypoint control flow', () => {
     extension(pi)
 
     expect(warn).toHaveBeenCalledWith(expect.stringContaining(`debug log is active and will be written to ${logPath}`))
+  })
+
+  it('produces no warnings when log is not activated and peon can be resolved', () => {
+    delete process.env.PI_PEON_ADAPTER_DEBUG_LOG
+    const peon = makePeon()
+    loadExtension({
+      resolvedPath: '/usr/bin/peon',
+      peon,
+    })
+    const { pi } = makePi()
+
+    extension(pi)
+
+    expect(warn).not.toHaveBeenCalled()
   })
 
   it('creates a peon sink and registers pi handlers when peon resolves', () => {
