@@ -4,11 +4,11 @@
 
 ### 1. `Stop` maps to `agent_settled`, not `agent_end`
 
-**Status:** Done — PR on branch `fix/use-aggent-settled` (enolive/pi-peon-adapter).
+**Status:** Done — merged to `main` in `c12c55c` (PR #1).
 
 **What shipped:** `pi.on('agent_end', …)` → `pi.on('agent_settled', …)` in `src/pi.ts`; tests, integration, and the README event-mapping row updated.
 
-**Version requirement:** `agent_settled` was introduced in pi `0.80.5`. The devDependency range `^0.80.3` was resolved up to `0.80.6` in the lockfile. `peerDependencies` stays `"*"` per `AGENTS.md` policy, so users on pi `≤ 0.80.3` will silently get no `Stop` sound (the handler registers against a non-existent event and never fires) — graceful degradation, not a crash. This is called out in the PR.
+**Version requirement:** `agent_settled` was introduced in pi `0.80.5`. The devDependency range `^0.80.3` was resolved up to `0.80.6` in the lockfile. `peerDependencies` stays `"*"` per pi's documented policy (a versioned range is not actionable — see the wontfix note in Open, and the `#4907` history there). On pi `≤ 0.80.3`, `pi.on('agent_settled', …)` registers a handler the host never emits — `pi.on()` (`core/extensions/loader.js:176`) accepts any event string into a Map with no validation, so there is no crash and no warning, just a silent no-op. Users silently get no `Stop` sound. **This is not graceful degradation:** `Stop` / `task.complete` is the adapter's core payoff (the "agent is done, look back now" cue — the reason to run PeonPing at all), so its absence is a silently broken core feature, not a degraded minor one. A runtime version guard warrants it — see #6 below (also merged to `main`).
 
 **Rationale:** `agent_end` fires once per agent-loop iteration; auto-retry and overflow-compaction-then-retry cause duplicate "task complete" sounds. `agent_settled` fires exactly once after the run has fully settled.
 
@@ -44,11 +44,23 @@ Tests: direct `extractSessionName` unit tests covering POSIX forward-slash, Wind
 
 **Caveat:** the bug is verified for native Windows only. Under WSL, pi runs under Linux Node → `path.resolve()` produces forward slashes → `split('/').pop()` works → no bug. No confirmed native-Windows pi + peon user exists yet, so practical impact remains unverified; the fix is low-risk and fully tested regardless.
 
+### 6. Runtime pi-version guard for `agent_settled`
+
+**Status:** Done — merged to `main` in `c12c55c` (PR #1, alongside #1).
+
+**What shipped:** `REQUIRED_PI_VERSION = '0.80.5'` and a `meetsMinimumVersion(actual, minimum)` comparator (~6 lines, handles only plain `X.Y.Z` — safe because pi's `VERSION` is always `pkg.version` from a published npm package) inlined as module-local constants/functions in `src/index.ts` — no separate utility module, the logic is too small to warrant one. `src/index.ts` now takes a second default-parameter `piVersion: string = VERSION` and checks `meetsMinimumVersion(piVersion, REQUIRED_PI_VERSION)` first (before peon resolution); if false, warns once and returns early, mirroring the existing peon-not-found disabled path. Tests: `src/index.test.ts` (+2: too-old-pi disables with warn; meets-min proceeds past the guard). The lockfile is bumped to 0.80.6, so the real `VERSION` default passes the guard and existing `extension(pi)` callers need no explicit version arg.
+
+**Rationale:** On pi `< 0.80.5`, `pi.on('agent_settled', …)` registers a handler the host never emits — `pi.on()` (`core/extensions/loader.js:176`) accepts any event string into a Map with no validation, so there's no crash and no warning, just a silent no-op. The `Stop` / `task.complete` sound never fires, which is the adapter's core payoff. This is invisible partial breakage, not graceful degradation (correcting the original #1 framing).
+
+**Research (pi docs + issue tracker):** `VERSION` is a sanctioned top-level export (`config.js:395`; pi's own `examples/extensions/custom-header.ts` imports it). `agent_settled` was added in response to pi issue [#2110](https://github.com/earendil-works/pi/issues/2110) — external validation that #1's `agent_end` → `agent_settled` swap matches the maintainers' own conclusion. A versioned `peerDependencies` range cannot work: pi issue [#4907](https://github.com/earendil-works/pi/issues/4907) documents `pi update` breaking with `ERESOLVE` because an extension declared a versioned peer; pi's `--legacy-peer-deps` fix was the direct response, and the loader injects only pi-bundled packages as virtual modules. `semver` as a dependency was rejected as scope-mismatched (it solves the general version-constraint problem; a single `gte` against `X.Y.Z` is the trivial core), and as a peer can't resolve (not pi-bundled, `--omit=peer`).
+
+**Open question (deferred):** the `console.warn` shares the existing load-time warn-mode-pollution debt (see Deferred) — doesn't create new debt, joins existing.
+
 ---
 
 ## Open
 
-Open items from the code review. The following are intentionally omitted as researched-and-closed or deliberate wontfixes:
+The following were intentionally omitted as researched-and-closed or deliberate wontfixes:
 
 - **Shutdown-time delivery** — fire-and-forget survives parent exit in practice.
 - **The `PermissionRequest` row** — pi does not emit this event.
@@ -56,6 +68,7 @@ Open items from the code review. The following are intentionally omitted as rese
 - **Forwarding the real error text** — `peon.sh:5655` uses the `error` field only as a truthiness gate (`if error_msg and tool_name == 'Bash'`); the hardcoded `'bash failed'` is correct and avoids a falsy-result suppression bug.
 - **Verifying `tool_name: 'Bash'`** — `peon.sh:5655` explicitly checks `tool_name == 'Bash'`; the existing test already pins the value.
 - **5a. Windows `resolveExecutable` suffix probing (`.exe` / `.cmd`)** — speculative and unverifiable on Linux CI. The target audience (pi + PeonPing users on Windows) skews heavily toward WSL, where `peon` resolves as a POSIX executable and none of this code runs. Even if native-Windows demand exists, `install.ps1` ships `peon.cmd` (a batch wrapper) plus a bash `peon` shim — and `spawn(peonPath, …)` without `shell: true` cannot execute a `.cmd` file on Windows (post-CVE-2024-27980, `CreateProcess` rejects it with `spawn EINVAL`). So suffix resolution alone would be a half-fix: find `peon.cmd`, then fail to spawn it. A real native-Windows fix requires `shell: true` (with its own JSON-via-stdin quoting implications) and real Windows CI — not smuggled into a suffix list. Reverted; revisit only with a Windows environment and a confirmed native user.
+- **`peerDependencies: "*"` (versioned peer range for pi)** — researched, closed as not actionable. Pi's docs require `"*"` for the bundled pi packages, and the loader (`core/extensions/loader.js`) injects pi's own instance as a virtual module / alias — the extension never resolves `@earendil-works/pi-coding-agent` from its own `node_modules`. Pi also installs extensions with `--legacy-peer-deps` / `--omit=peer` / `--config.strict-peer-dependencies=false` (`package-manager.js:1457`), so any version range (e.g. `>=0.80.5`) is never solved, checked, or warned against. This is not just theory: pi issue [#4907](https://github.com/earendil-works/pi/issues/4907) (closed) documents `pi update` breaking with `ERESOLVE` precisely because an extension declared a versioned peer for `@earendil-works/pi-coding-agent` — pi's `--legacy-peer-deps` fix was the direct response. A versioned peer range is functionally a no-op and historically harmful; the only real guard for version-specific events like `agent_settled` is a runtime `VERSION` check (see #6 above).
 
 ---
 
@@ -65,6 +78,5 @@ Not withdrawn, but not blocking — listed for completeness:
 
 - **No concurrency / backpressure in `send`:** a burst of `tool_execution_end` events spawns N concurrent peon processes. Probably fine at typical volumes; consider a small semaphore / queue if it ever matters.
 - **Sync `appendFileSync` per log line on the main thread:** low volume today, but every `tool_execution_end` (including skipped ones) writes 2 sync lines. Consider buffered async writes if profiling shows it.
-- **`peerDependencies: "*"` gives no semver safety:** a pi release that renames / drops a used event type breaks at runtime with no install-time warning. Policy per `AGENTS.md`, but a `>=` floor would at least guard against removals.
 - **`console.warn` at load can pollute `pi --json` / RPC stderr:** the missing-executable and debug-log warnings fire before mode is known. Consider gating on `ctx.mode` / `hasUI` if reachable at load.
 - **CESP column ownership in the README:** clarify that the CESP category mapping is peon's responsibility, not the adapter's, so a peon-side remap does not make the docs misleading.
