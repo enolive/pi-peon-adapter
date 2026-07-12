@@ -58,7 +58,7 @@ Tests: direct `extractSessionName` unit tests covering POSIX forward-slash, Wind
 
 ---
 
-## Open
+## Withdrawn
 
 The following were intentionally omitted as researched-and-closed or deliberate wontfixes:
 
@@ -68,7 +68,9 @@ The following were intentionally omitted as researched-and-closed or deliberate 
 - **Forwarding the real error text** — `peon.sh:5655` uses the `error` field only as a truthiness gate (`if error_msg and tool_name == 'Bash'`); the hardcoded `'bash failed'` is correct and avoids a falsy-result suppression bug.
 - **Verifying `tool_name: 'Bash'`** — `peon.sh:5655` explicitly checks `tool_name == 'Bash'`; the existing test already pins the value.
 - **5a. Windows `resolveExecutable` suffix probing (`.exe` / `.cmd`)** — speculative and unverifiable on Linux CI. The target audience (pi + PeonPing users on Windows) skews heavily toward WSL, where `peon` resolves as a POSIX executable and none of this code runs. Even if native-Windows demand exists, `install.ps1` ships `peon.cmd` (a batch wrapper) plus a bash `peon` shim — and `spawn(peonPath, …)` without `shell: true` cannot execute a `.cmd` file on Windows (post-CVE-2024-27980, `CreateProcess` rejects it with `spawn EINVAL`). So suffix resolution alone would be a half-fix: find `peon.cmd`, then fail to spawn it. A real native-Windows fix requires `shell: true` (with its own JSON-via-stdin quoting implications) and real Windows CI — not smuggled into a suffix list. Reverted; revisit only with a Windows environment and a confirmed native user.
-- **`peerDependencies: "*"` (versioned peer range for pi)** — researched, closed as not actionable. Pi's docs require `"*"` for the bundled pi packages, and the loader (`core/extensions/loader.js`) injects pi's own instance as a virtual module / alias — the extension never resolves `@earendil-works/pi-coding-agent` from its own `node_modules`. Pi also installs extensions with `--legacy-peer-deps` / `--omit=peer` / `--config.strict-peer-dependencies=false` (`package-manager.js:1457`), so any version range (e.g. `>=0.80.5`) is never solved, checked, or warned against. This is not just theory: pi issue [#4907](https://github.com/earendil-works/pi/issues/4907) (closed) documents `pi update` breaking with `ERESOLVE` precisely because an extension declared a versioned peer for `@earendil-works/pi-coding-agent` — pi's `--legacy-peer-deps` fix was the direct response. A versioned peer range is functionally a no-op and historically harmful; the only real guard for version-specific events like `agent_settled` is a runtime `VERSION` check (see #6 above).
+- **No concurrency / backpressure in `send`:** only fires on failed `bash` executions plus session lifecycle events. The former is actually meaningful signal (the user is having a bad time), and PeonPing has built-in spam detection for this.
+- **`peerDependencies: "*"` (versioned peer range for pi)** — researched, closed as not actionable. Pi's docs require "*" for the bundled pi packages, and the loader (`core/extensions/loader.js`) injects pi's own instance as a virtual module / alias — the extension never resolves `@earendil-works/pi-coding-agent` from its own `node_modules`. Pi also installs extensions with `--legacy-peer-deps` / `--omit=peer` / `--config.strict-peer-dependencies=false` (`package-manager.js:1457`), so any version range (e.g. `>=0.80.5`) is never solved, checked, or warned against. This is not just theory: pi issue [#4907](https://github.com/earendil-works/pi/issues/4907) (closed) documents `pi update` breaking with `ERESOLVE` precisely because an extension declared a versioned peer for `@earendil-works/pi-coding-agent` — pi's `--legacy-peer-deps` fix was the direct response. A versioned peer range is functionally a no-op and historically harmful; the only real guard for version-specific events like `agent_settled` is a runtime `VERSION` check (see #6 above).
+- **CESP column ownership in the README:** the mapping shown is a reference derived from PeonPing's current behavior, not a contract. If PeonPing changes its CESP mapping, this table becomes stale. The right fix is PeonPing documenting its mapping clearly — not something the adapter can solve.
 
 ---
 
@@ -76,7 +78,5 @@ The following were intentionally omitted as researched-and-closed or deliberate 
 
 Not withdrawn, but not blocking — listed for completeness:
 
-- **No concurrency / backpressure in `send`:** a burst of `tool_execution_end` events spawns N concurrent peon processes. Probably fine at typical volumes; consider a small semaphore / queue if it ever matters.
 - **Sync `appendFileSync` per log line on the main thread:** low volume today, but every `tool_execution_end` (including skipped ones) writes 2 sync lines. Consider buffered async writes if profiling shows it.
 - **`console.warn` at load can pollute `pi --json` / RPC stderr:** the missing-executable and debug-log warnings fire before mode is known. Consider gating on `ctx.mode` / `hasUI` if reachable at load.
-- **CESP column ownership in the README:** clarify that the CESP category mapping is peon's responsibility, not the adapter's, so a peon-side remap does not make the docs misleading.
