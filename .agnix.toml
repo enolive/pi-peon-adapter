@@ -1,0 +1,7 @@
+tools = ['generic', 'opencode', 'claude-code']
+
+[[overrides]]
+paths = ["REVIEW.md"]
+disabled_rules = [
+    "XP-003", # Windows-specific path deliberately configured to show an example of a problem
+]
