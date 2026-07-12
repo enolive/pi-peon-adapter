@@ -1,6 +1,6 @@
 {
   "name": "pi-peon-adapter",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "pi extension adapter that maps lifecycle events to peon notifications",
   "license": "MIT",
   "type": "module",
