@@ -54,8 +54,6 @@ Tests: direct `extractSessionName` unit tests covering POSIX forward-slash, Wind
 
 **Research (pi docs + issue tracker):** `VERSION` is a sanctioned top-level export (`config.js:395`; pi's own `examples/extensions/custom-header.ts` imports it). `agent_settled` was added in response to pi issue [#2110](https://github.com/earendil-works/pi/issues/2110) — external validation that #1's `agent_end` → `agent_settled` swap matches the maintainers' own conclusion. A versioned `peerDependencies` range cannot work: pi issue [#4907](https://github.com/earendil-works/pi/issues/4907) documents `pi update` breaking with `ERESOLVE` because an extension declared a versioned peer; pi's `--legacy-peer-deps` fix was the direct response, and the loader injects only pi-bundled packages as virtual modules. `semver` as a dependency was rejected as scope-mismatched (it solves the general version-constraint problem; a single `gte` against `X.Y.Z` is the trivial core), and as a peer can't resolve (not pi-bundled, `--omit=peer`).
 
-**Open question (deferred):** the `console.warn` shares the existing load-time warn-mode-pollution debt (see Deferred) — doesn't create new debt, joins existing.
-
 ---
 
 ## Withdrawn
@@ -71,6 +69,8 @@ The following were intentionally omitted as researched-and-closed or deliberate 
 - **No concurrency / backpressure in `send`:** only fires on failed `bash` executions plus session lifecycle events. The former is actually meaningful signal (the user is having a bad time), and PeonPing has built-in spam detection for this.
 - **`peerDependencies: "*"` (versioned peer range for pi)** — researched, closed as not actionable. Pi's docs require "*" for the bundled pi packages, and the loader (`core/extensions/loader.js`) injects pi's own instance as a virtual module / alias — the extension never resolves `@earendil-works/pi-coding-agent` from its own `node_modules`. Pi also installs extensions with `--legacy-peer-deps` / `--omit=peer` / `--config.strict-peer-dependencies=false` (`package-manager.js:1457`), so any version range (e.g. `>=0.80.5`) is never solved, checked, or warned against. This is not just theory: pi issue [#4907](https://github.com/earendil-works/pi/issues/4907) (closed) documents `pi update` breaking with `ERESOLVE` precisely because an extension declared a versioned peer for `@earendil-works/pi-coding-agent` — pi's `--legacy-peer-deps` fix was the direct response. A versioned peer range is functionally a no-op and historically harmful; the only real guard for version-specific events like `agent_settled` is a runtime `VERSION` check (see #6 above).
 - **CESP column ownership in the README:** the mapping shown is a reference derived from PeonPing's current behavior, not a contract. If PeonPing changes its CESP mapping, this table becomes stale. The right fix is PeonPing documenting its mapping clearly — not something the adapter can solve.
+- **Sync `appendFileSync` per log line on the main thread:** only writes when debug logging is enabled (opt-in via `PI_PEON_ADAPTER_DEBUG_LOG`). Current volume is low (2 lines per `tool_execution_end`). Consider buffered async writes if profiling shows it matters.
+- **`console.warn` at load can pollute `pi --json` / RPC stderr:** the missing-executable, old-pi, and debug-log warnings fire before mode is known. pi does not provide a load-time mode signal, and moving warnings to `session_start` would silently suppress failures that occur before the first event. Other extensions and pi samples also use `console.warn`. This is a pi ecosystem limitation, not solvable by the adapter.
 
 ---
 
@@ -78,5 +78,4 @@ The following were intentionally omitted as researched-and-closed or deliberate 
 
 Not withdrawn, but not blocking — listed for completeness:
 
-- **Sync `appendFileSync` per log line on the main thread:** low volume today, but every `tool_execution_end` (including skipped ones) writes 2 sync lines. Consider buffered async writes if profiling shows it.
-- **`console.warn` at load can pollute `pi --json` / RPC stderr:** the missing-executable and debug-log warnings fire before mode is known. Consider gating on `ctx.mode` / `hasUI` if reachable at load.
+(empty)
