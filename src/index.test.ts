@@ -23,6 +23,42 @@ describe('extension entrypoint control flow', () => {
     env.restore()
   })
 
+  describe('warns and registers no pi handlers when pi is older than the minimum', () => {
+    it.each([
+      ['0.79.1', '0.79.1'],
+      ['0.80.3', '0.80.3'],
+      ['0.80.4', '0.80.4'],
+      ['', '<unknown>'],
+      ['bullshit', 'bullshit'],
+    ])('%s', (actualVersion, displayVersion) => {
+      const { resolveExecutable, createPeonSink, registerPiHandlers } = loadExtension({
+        resolvedPath: '/usr/bin/peon',
+        peon: makePeon(),
+      })
+      const { pi } = makePi()
+
+      extension(pi, actualVersion)
+
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining(`pi ${displayVersion} is older than required 0.80.5.`))
+      expect(resolveExecutable).not.toHaveBeenCalled()
+      expect(createPeonSink).not.toHaveBeenCalled()
+      expect(registerPiHandlers).not.toHaveBeenCalled()
+    })
+  })
+
+  it('proceeds past the version check when pi meets the minimum', () => {
+    const { registerPiHandlers } = loadExtension({
+      resolvedPath: '/usr/bin/peon',
+      peon: makePeon(),
+    })
+    const { pi } = makePi()
+
+    extension(pi, '0.80.5')
+
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('older than required'))
+    expect(registerPiHandlers).toHaveBeenCalledWith(pi, expect.anything())
+  })
+
   it('warns and registers no pi handlers when peon cannot be resolved', () => {
     process.env.PEON_BIN = 'missing-peon'
     const { resolveExecutable, createPeonSink, registerPiHandlers } = loadExtension({

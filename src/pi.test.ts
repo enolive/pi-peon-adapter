@@ -25,7 +25,7 @@ describe('registerPiHandlers', () => {
     expect(on).toHaveBeenCalledTimes(6)
     expect(on).toHaveBeenCalledWith('session_start', expect.any(Function))
     expect(on).toHaveBeenCalledWith('input', expect.any(Function))
-    expect(on).toHaveBeenCalledWith('agent_end', expect.any(Function))
+    expect(on).toHaveBeenCalledWith('agent_settled', expect.any(Function))
     expect(on).toHaveBeenCalledWith('tool_execution_end', expect.any(Function))
     expect(on).toHaveBeenCalledWith('session_before_compact', expect.any(Function))
     expect(on).toHaveBeenCalledWith('session_shutdown', expect.any(Function))
@@ -94,12 +94,12 @@ describe('registerPiHandlers', () => {
     expect(peon.send).not.toHaveBeenCalled()
   })
 
-  it('maps agent_end to Stop', async () => {
+  it('maps agent_settled to Stop', async () => {
     const { handlers, peon } = setup()
     const cwd = '/agent-end/project'
     const session = 'agent-end-session'
 
-    await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx(cwd, session))
+    await emit(handlers, 'agent_settled', { type: 'agent_settled' }, ctx(cwd, session))
 
     expect(peon.send).toHaveBeenCalledWith({
       hook_event_name: 'Stop',
@@ -174,7 +174,7 @@ describe('registerPiHandlers', () => {
     const { handlers, peon } = setup()
     const cwd = '/explicit/project'
 
-    await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, makeCtx({ cwd }))
+    await emit(handlers, 'agent_settled', { type: 'agent_settled' }, makeCtx({ cwd }))
 
     expect(peon.send).toHaveBeenCalledWith(expect.objectContaining({ cwd }))
   })
@@ -189,7 +189,7 @@ describe('registerPiHandlers', () => {
       const { handlers, peon } = setup()
       const ctx = makeCtx({ cwd: '/work/project', session: sessionFile })
 
-      await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
+      await emit(handlers, 'agent_settled', { type: 'agent_settled' }, ctx)
 
       expect(peon.send).toHaveBeenCalledWith(expect.objectContaining({ session_id: expected }))
     })
@@ -200,7 +200,7 @@ describe('registerPiHandlers', () => {
       const { handlers, peon } = setup()
       const ctx = makeCtx({ cwd: '/work/project', session: sessionFile })
 
-      await emit(handlers, 'agent_end', { type: 'agent_end', messages: [] }, ctx)
+      await emit(handlers, 'agent_settled', { type: 'agent_settled' }, ctx)
 
       expect(peon.send).toHaveBeenCalledWith(
         expect.objectContaining({ session_id: 'pi-00000000-0000-4000-8000-000000000000' }),

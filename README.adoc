@@ -108,11 +108,11 @@ tail -f /tmp/pi-peon-debug.log
 | 🔔
 | Fires when user input is received.
 
-| `agent_end`
+| `agent_settled`
 | `Stop`
 | `task.complete`
 | 🔔
-| Sent when an agent turn ends.
+| Sent once after an agent run has fully settled (no pending retry, compaction, or continuation), so the sound fires exactly once per task.
 
 | `tool_execution_end`
 | `PostToolUseFailure`
