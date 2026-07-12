@@ -1,68 +1,74 @@
 # Review Action Points
 
-Open items from the code review. The following are intentionally omitted as researched-and-closed or deliberate wontfixes:
+## Tackled
+
+### 1. `Stop` maps to `agent_settled`, not `agent_end`
+
+**Status:** Done — PR on branch `fix/use-aggent-settled` (enolive/pi-peon-adapter).
+
+**What shipped:** `pi.on('agent_end', …)` → `pi.on('agent_settled', …)` in `src/pi.ts`; tests, integration, and the README event-mapping row updated.
+
+**Version requirement:** `agent_settled` was introduced in pi `0.80.5`. The devDependency range `^0.80.3` was resolved up to `0.80.6` in the lockfile. `peerDependencies` stays `"*"` per pi's documented policy (a versioned range is not actionable — see the wontfix note in Open, and the `#4907` history there). On pi `≤ 0.80.3`, `pi.on('agent_settled', …)` registers a handler the host never emits — `pi.on()` (`core/extensions/loader.js:176`) accepts any event string into a Map with no validation, so there is no crash and no warning, just a silent no-op. Users silently get no `Stop` sound. **This is not graceful degradation:** `Stop` / `task.complete` is the adapter's core payoff (the "agent is done, look back now" cue — the reason to run PeonPing at all), so its absence is a silently broken core feature, not a degraded minor one. A runtime version guard is warranted — see #6 in Open. This is called out in the PR.
+
+**Rationale:** `agent_end` fires once per agent-loop iteration; auto-retry and overflow-compaction-then-retry cause duplicate "task complete" sounds. `agent_settled` fires exactly once after the run has fully settled.
+
+### 3. Guard `input` on `hasUI`
+
+**Status:** Done — committed in `667aca1`.
+
+**What shipped:** Added `if (!ctx.hasUI) { logSkip(event, ctx, 'no_ui'); return }` to the `input` handler in `src/pi.ts`, mirroring the existing `session_start` guard. Tests: the single `interactive`-only `input` test was replaced with a parameterized 3-source preservation test (`interactive`, `rpc`, `extension`) that locks in ACP (`source: "rpc"`) forwarding under `hasUI: true`, plus a `hasUI: false` skip test. `test/helpers/fake-pi.ts` `makeCtx` was refactored to a structured `MakeCtxOptions` so `hasUI: false` no longer requires post-construction mutation.
+
+**Rationale:** `input` forwarded every source as `UserPromptSubmit`, including headless `pi -p "…"` / `pi --json` runs where no human hears the sound. Filtering by `InputEvent.source` would be wrong — `source: "rpc"` covers both programmatic RPC and ACP-driven input (human in Zed/IDEA via pi-acp), so a source filter would silently kill the prompt sound for IDE users. `ctx.hasUI` is `true` in TUI and RPC modes (ACP included), `false` in print/json — exactly the "is there a human to hear this?" axis, and consistent with the existing `session_start` idiom. No README change needed.
+
+### 4. Drain child stdio and escalate `SIGTERM` → `SIGKILL`
+
+**Status:** Done — committed in `7bb71ab`.
+
+**What shipped:** Two changes in `src/peon.ts`:
+1. `stdio: ['pipe','pipe','pipe']` → `['pipe','ignore','ignore']`. Node no longer creates stdout/stderr pipes at all, so there is no buffer to fill and no silent-block-then-timeout cliff. This aligns the code with the existing JSDoc that already promised "ignore output."
+2. SIGKILL escalation: the 5s `SIGTERM` timeout handler now arms a second ~1s timer that sends `SIGKILL` if the child still hasn't exited. Both timers are cleared on `close`/`error`. `clearTimeout(undefined)` is a safe no-op, so no conditional guards are needed.
+
+Tests: renamed the stdio assertion; added an escalation test (SIGTERM at 5s → SIGKILL at +1s) and a regression guard proving no SIGKILL fires when the child closes after SIGTERM.
+
+**Rationale:** piped-but-undrained stdout/stderr could block peon once the ~64KB pipe buffer fills, causing a mysterious 5s timeout kill with no root cause. A stuck peon ignoring `SIGTERM` would previously linger indefinitely; the escalation guarantees termination within ~6s.
+
+### 5b. Cross-platform session-id extraction
+
+**Status:** Done — committed in `77c0408`.
+
+**What shipped:** Extracted pure `extractSessionName(sessionFile)` in `src/pi.ts` — takes the last path segment matching both `/` and `\` separators, then strips only the final extension (keeping `.pi` per the accepted design). `sessionIdFor` now delegates to it. A regex is used instead of `path.basename` because `path.basename` is platform-specific and would not parse Windows backslash paths when tests run on Linux CI.
+
+Tests: direct `extractSessionName` unit tests covering POSIX forward-slash, Windows backslash, and mixed-separator paths plus the undefined/empty/trailing-separator fallbacks.
+
+**Rationale:** `sessionIdFor` previously used `file.split('/').pop()`, Unix-only. On Windows native, `getSessionFile()` returns backslash paths (verified in pi source: `session-manager.js` sets `this.sessionFile` via `resolvePath()` / `path.join()`, both platform-specific, with no `/`-normalization applied to the stored value). For a path like `C:\Users\name\.pi\sessions\foo.jsonl`, `split('/').pop()` returns the entire string, so after stripping the extension the adapter would send `pi-C:\Users\name\.pi\sessions\foo` — a garbage `session_id` leaking the full backslash path to peon, not (as originally claimed) a per-event UUID fallback. `extractSessionName` is identical on POSIX and also handles `\` at zero runtime cost. Unlike 5a, this is a pure function fully testable on Linux CI — defensive robustness, not speculative platform code.
+
+**Caveat:** the bug is verified for native Windows only. Under WSL, pi runs under Linux Node → `path.resolve()` produces forward slashes → `split('/').pop()` works → no bug. No confirmed native-Windows pi + peon user exists yet, so practical impact remains unverified; the fix is low-risk and fully tested regardless.
+
+### 6. Runtime pi-version guard for `agent_settled`
+
+**Status:** Done — integrated on PR branch `fix/use-aggent-settled` alongside #1.
+
+**What shipped:** `REQUIRED_PI_VERSION = '0.80.5'` and a `meetsMinimumVersion(actual, minimum)` comparator (~6 lines, handles only plain `X.Y.Z` — safe because pi's `VERSION` is always `pkg.version` from a published npm package) inlined as module-local constants/functions in `src/index.ts` — no separate utility module, the logic is too small to warrant one. `src/index.ts` now takes a second default-parameter `piVersion: string = VERSION` and checks `meetsMinimumVersion(piVersion, REQUIRED_PI_VERSION)` first (before peon resolution); if false, warns once and returns early, mirroring the existing peon-not-found disabled path. Tests: `src/index.test.ts` (+2: too-old-pi disables with warn; meets-min proceeds past the guard). On the PR branch the lockfile is bumped to 0.80.6, so the real `VERSION` default passes the guard and existing `extension(pi)` callers need no explicit version arg.
+
+**Rationale:** On pi `< 0.80.5`, `pi.on('agent_settled', …)` registers a handler the host never emits — `pi.on()` (`core/extensions/loader.js:176`) accepts any event string into a Map with no validation, so there's no crash and no warning, just a silent no-op. The `Stop` / `task.complete` sound never fires, which is the adapter's core payoff. This is invisible partial breakage, not graceful degradation (correcting the original #1 framing).
+
+**Research (pi docs + issue tracker):** `VERSION` is a sanctioned top-level export (`config.js:395`; pi's own `examples/extensions/custom-header.ts` imports it). `agent_settled` was added in response to pi issue [#2110](https://github.com/earendil-works/pi/issues/2110) — external validation that #1's `agent_end` → `agent_settled` swap matches the maintainers' own conclusion. A versioned `peerDependencies` range cannot work: pi issue [#4907](https://github.com/earendil-works/pi/issues/4907) documents `pi update` breaking with `ERESOLVE` because an extension declared a versioned peer; pi's `--legacy-peer-deps` fix was the direct response, and the loader injects only pi-bundled packages as virtual modules. `semver` as a dependency was rejected as scope-mismatched (it solves the general version-constraint problem; a single `gte` against `X.Y.Z` is the trivial core), and as a peer can't resolve (not pi-bundled, `--omit=peer`).
+
+**Open question (deferred):** the `console.warn` shares the existing load-time warn-mode-pollution debt (see Deferred) — doesn't create new debt, joins existing.
+
+---
+
+## Open
+
+The following were intentionally omitted as researched-and-closed or deliberate wontfixes:
 
 - **Shutdown-time delivery** — fire-and-forget survives parent exit in practice.
 - **The `PermissionRequest` row** — pi does not emit this event.
 - **Broadening `tool_execution_end` beyond `bash`** — PeonPing reserves `task.error` for command failures.
 - **Forwarding the real error text** — `peon.sh:5655` uses the `error` field only as a truthiness gate (`if error_msg and tool_name == 'Bash'`); the hardcoded `'bash failed'` is correct and avoids a falsy-result suppression bug.
 - **Verifying `tool_name: 'Bash'`** — `peon.sh:5655` explicitly checks `tool_name == 'Bash'`; the existing test already pins the value.
-
-## 1. `Stop` should map to `agent_settled`, not `agent_end`
-
-**Problem:** `agent_end` fires once per agent-loop iteration, not once per user-visible task. Auto-retry (retryable errors) and overflow-compaction-then-retry both cause `agent_end` to fire multiple times for a single prompt, so PeonPing plays the "task complete" sound more than once. `agent_settled` is the event that fires exactly once after the run has fully settled (no further retry / compaction / continuation).
-
-**Tackle:**
-
-1. Red: in `src/pi.test.ts`, add a test that emits `agent_end` and asserts `peon.send` is **not** called, then emits `agent_settled` and asserts a single `Stop` payload.
-2. Green: in `src/pi.ts`, change `pi.on('agent_end', …)` to `pi.on('agent_settled', …)`. `AgentSettledEvent` is `{ type: 'agent_settled' }` (no `messages`), and the current handler does not read `messages`, so it is a clean swap.
-3. The handler-registration count test still expects 6 handlers, but one is now `agent_settled` — update the `toHaveBeenCalledWith('agent_end', …)` assertion.
-4. Update the README event-mapping table row: `agent_end` → `agent_settled`.
-
-**Files:** `src/pi.ts`, `src/pi.test.ts`, `README.adoc`.
-
-## 3. Guard `input` on `hasUI`
-
-**Problem:** `input` currently forwards every source as `UserPromptSubmit`, including headless `pi -p "…"` and `pi --json` invocations where no human is present to hear the sound. The naive fix — filtering by `InputEvent.source` — is wrong: `source: "rpc"` covers both programmatic RPC and ACP-driven input (a human typing in Zed/IDEA via pi-acp), so a source filter would silently suppress the prompt sound for every IDE user. `source` cannot distinguish those two cases.
-
-`ctx.hasUI` can. It is `true` in TUI and RPC modes (ACP included) and `false` in print/json modes — exactly the axis that matters for audio: *is there a human-facing UI that could hear the sound?* `session_start` already gates on this (`if (!ctx.hasUI) { logSkip(event, ctx, 'no_ui'); return }`), so applying the same guard to `input` is consistent with the existing idiom rather than introducing a new filter concept.
-
-**Tackle:**
-
-1. Red: in `src/pi.test.ts`, emit `input` against a context with `hasUI: false` and assert `peon.send` is **not** called; emit it with `hasUI: true` and assert a `UserPromptSubmit` payload. Cover all three `source` values under `hasUI: true` to lock in that ACP (`source: "rpc"`) is preserved.
-2. Green: in `src/pi.ts`, add the same `if (!ctx.hasUI) { logSkip(event, ctx, 'no_ui'); return }` guard at the top of the `input` handler that `session_start` uses.
-3. No README change needed — the `input` row's "Fires when user input is received" still reads correctly.
-
-**Files:** `src/pi.ts`, `src/pi.test.ts`.
-
-## 4. Drain child stdio and escalate `SIGTERM` → `SIGKILL`
-
-**Problem:** `spawn(…, { stdio: ['pipe','pipe','pipe'] })` pipes stdout/stderr but never reads them. If `peon` writes enough to fill the ~64KB pipe buffer, the child blocks, the 5s timer fires, and the only log is a `timeout_kill` with no root cause. Also, `SIGTERM` has no `SIGKILL` escalation, so a stuck peon lingers.
-
-**Tackle:**
-
-1. Simplest drain fix: `stdio: ['pipe', 'ignore', 'ignore']` (discards peon's output). If you want failure visibility, instead attach discard listeners or pipe stderr to the parent only when debug logging is on.
-2. Escalation: after `child.kill('SIGTERM')`, set a second timer (~1000ms) that calls `child.kill('SIGKILL')` if the child is still alive. Clear both timers on `close` / `error`.
-3. Red: extend the existing `peon.test.ts` timeout test — after `SIGTERM`, advance timers past the escalation window and assert `kill` is called a second time with `'SIGKILL'`. Update the spawn-call assertion if the `stdio` option changes.
-4. Note: the `makeChildProcess` helper uses `PassThrough` streams (auto-drain), so the drain itself is hard to unit-test; the escalation test is the concrete TDD handle.
-
-**Files:** `src/peon.ts`, `src/peon.test.ts`.
-
-## 5. Windows portability
-
-Two platform bugs:
-
-**5a. `resolveExecutable` misses `.exe` / `.cmd`:** On Windows, `peon` is distributed as `peon.exe` or `peon.cmd`; `join(dir, 'peon')` finds neither. `accessSync(X_OK)` is also unreliable on Windows (it mostly checks readability).
-
-**5b. `sessionIdFor` uses Unix-only path splitting:** `file.split('/').pop()` breaks on Windows backslash paths, falling through to the `randomUUID()` fallback every time — so `session_id` differs per event.
-
-**Tackle:**
-
-1. For 5b (fully testable on Linux): replace `file.split('/').pop()?.replace(…)` with `path.basename(file)` then strip the final extension (keep the `.pi` per the accepted design). Extract a pure `extractSessionName(sessionFile: string | undefined): string | undefined` and unit-test it with both `/a/b.pi.json` and `C:\a\b.pi.json` style inputs.
-2. For 5a: on `process.platform === 'win32'`, try candidate suffixes `['', '.exe', '.cmd', '.bat']` and use `accessSync(path, F_OK)` instead of `X_OK`. Hard to exercise on Linux CI — at minimum extract the candidate-suffix logic into a pure function and test it in isolation; gate the `win32` branch behind a platform check.
-3. Red: add the `extractSessionName` tests with backslash paths (they fail today).
-
-**Files:** `src/peon.ts`, `src/peon.test.ts`, `src/pi.ts`, `src/pi.test.ts`.
+- **5a. Windows `resolveExecutable` suffix probing (`.exe` / `.cmd`)** — speculative and unverifiable on Linux CI. The target audience (pi + PeonPing users on Windows) skews heavily toward WSL, where `peon` resolves as a POSIX executable and none of this code runs. Even if native-Windows demand exists, `install.ps1` ships `peon.cmd` (a batch wrapper) plus a bash `peon` shim — and `spawn(peonPath, …)` without `shell: true` cannot execute a `.cmd` file on Windows (post-CVE-2024-27980, `CreateProcess` rejects it with `spawn EINVAL`). So suffix resolution alone would be a half-fix: find `peon.cmd`, then fail to spawn it. A real native-Windows fix requires `shell: true` (with its own JSON-via-stdin quoting implications) and real Windows CI — not smuggled into a suffix list. Reverted; revisit only with a Windows environment and a confirmed native user.
+- **`peerDependencies: "*"` (versioned peer range for pi)** — researched, closed as not actionable. Pi's docs require `"*"` for the bundled pi packages, and the loader (`core/extensions/loader.js`) injects pi's own instance as a virtual module / alias — the extension never resolves `@earendil-works/pi-coding-agent` from its own `node_modules`. Pi also installs extensions with `--legacy-peer-deps` / `--omit=peer` / `--config.strict-peer-dependencies=false` (`package-manager.js:1457`), so any version range (e.g. `>=0.80.5`) is never solved, checked, or warned against. This is not just theory: pi issue [#4907](https://github.com/earendil-works/pi/issues/4907) (closed) documents `pi update` breaking with `ERESOLVE` precisely because an extension declared a versioned peer for `@earendil-works/pi-coding-agent` — pi's `--legacy-peer-deps` fix was the direct response. A versioned peer range is functionally a no-op and historically harmful; the only real guard for version-specific events like `agent_settled` is a runtime `VERSION` check (see #6 above).
 
 ---
 
@@ -72,6 +78,5 @@ Not withdrawn, but not blocking — listed for completeness:
 
 - **No concurrency / backpressure in `send`:** a burst of `tool_execution_end` events spawns N concurrent peon processes. Probably fine at typical volumes; consider a small semaphore / queue if it ever matters.
 - **Sync `appendFileSync` per log line on the main thread:** low volume today, but every `tool_execution_end` (including skipped ones) writes 2 sync lines. Consider buffered async writes if profiling shows it.
-- **`peerDependencies: "*"` gives no semver safety:** a pi release that renames / drops a used event type breaks at runtime with no install-time warning. Policy per `AGENTS.md`, but a `>=` floor would at least guard against removals.
 - **`console.warn` at load can pollute `pi --json` / RPC stderr:** the missing-executable and debug-log warnings fire before mode is known. Consider gating on `ctx.mode` / `hasUI` if reachable at load.
 - **CESP column ownership in the README:** clarify that the CESP category mapping is peon's responsibility, not the adapter's, so a peon-side remap does not make the docs misleading.
