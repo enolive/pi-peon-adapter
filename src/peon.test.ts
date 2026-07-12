@@ -137,14 +137,14 @@ describe('createPeonSink', () => {
     expect(child.stdinEnd).toHaveBeenCalled()
   })
 
-  it('spawns peon with piped stdio', () => {
+  it('spawns peon with ignored stdout and stderr', () => {
     const child = makeChildProcess()
     vi.mocked(spawn).mockReturnValue(child.process)
     const peon = createPeonSink('/bin/peon')
 
     peon.send(payload)
 
-    expect(spawn).toHaveBeenCalledWith('/bin/peon', [], { stdio: ['pipe', 'pipe', 'pipe'] })
+    expect(spawn).toHaveBeenCalledWith('/bin/peon', [], { stdio: ['pipe', 'ignore', 'ignore'] })
   })
 
   describe('does not kill child after close clears timeout for', () => {
@@ -187,6 +187,35 @@ describe('createPeonSink', () => {
     peon.send(payload)
     vi.advanceTimersByTime(5000)
 
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM')
+  })
+
+  it('escalates to SIGKILL after SIGTERM when child does not exit', () => {
+    const child = makeChildProcess()
+    vi.mocked(spawn).mockReturnValue(child.process)
+    const peon = createPeonSink('/bin/peon')
+
+    peon.send(payload)
+    vi.advanceTimersByTime(5000)
+
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM')
+
+    vi.advanceTimersByTime(1000)
+
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+  })
+
+  it('does not escalate to SIGKILL when child closes after SIGTERM', () => {
+    const child = makeChildProcess()
+    vi.mocked(spawn).mockReturnValue(child.process)
+    const peon = createPeonSink('/bin/peon')
+
+    peon.send(payload)
+    vi.advanceTimersByTime(5000)
+    child.emit('close', 0, 'SIGTERM')
+    vi.advanceTimersByTime(1000)
+
+    expect(child.kill).toHaveBeenCalledTimes(1)
     expect(child.kill).toHaveBeenCalledWith('SIGTERM')
   })
 

@@ -2,7 +2,7 @@ import type { SessionBeforeCompactEvent } from '@earendil-works/pi-coding-agent'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { emit, makeCtx, makePi } from '../test/helpers/fake-pi'
 import { makePeon } from '../test/helpers/fake-peon'
-import { registerPiHandlers } from './pi'
+import { extractSessionName, registerPiHandlers } from './pi'
 
 const randomUUID = vi.hoisted(() => vi.fn<() => `${string}-${string}-${string}-${string}-${string}`>())
 
@@ -49,10 +49,35 @@ describe('registerPiHandlers', () => {
     })
   })
 
-  it('maps input to UserPromptSubmit', async () => {
+  describe('maps input to UserPromptSubmit for sources with UI', () => {
+    it.each(['interactive', 'rpc', 'extension'] as const)('%s', async (source) => {
+      const { handlers, peon } = setup()
+      const cwd = '/prompt/project'
+      const session = 'prompt-session'
+
+      await emit(
+        handlers,
+        'input',
+        {
+          type: 'input',
+          text: 'hello',
+          images: [],
+          source,
+        },
+        ctx(cwd, session),
+      )
+
+      expect(peon.send).toHaveBeenCalledWith({
+        hook_event_name: 'UserPromptSubmit',
+        session_id: `pi-${session}`,
+        cwd,
+      })
+    })
+  })
+
+  it('skips input when UI is unavailable', async () => {
     const { handlers, peon } = setup()
-    const cwd = '/prompt/project'
-    const session = 'prompt-session'
+    const ctx = makeCtx({ hasUI: false })
 
     await emit(
       handlers,
@@ -63,14 +88,10 @@ describe('registerPiHandlers', () => {
         images: [],
         source: 'interactive',
       },
-      ctx(cwd, session),
+      ctx,
     )
 
-    expect(peon.send).toHaveBeenCalledWith({
-      hook_event_name: 'UserPromptSubmit',
-      session_id: `pi-${session}`,
-      cwd,
-    })
+    expect(peon.send).not.toHaveBeenCalled()
   })
 
   it('maps agent_settled to Stop', async () => {
@@ -153,7 +174,7 @@ describe('registerPiHandlers', () => {
     const { handlers, peon } = setup()
     const cwd = '/explicit/project'
 
-    await emit(handlers, 'agent_settled', { type: 'agent_settled' }, makeCtx(cwd))
+    await emit(handlers, 'agent_settled', { type: 'agent_settled' }, makeCtx({ cwd }))
 
     expect(peon.send).toHaveBeenCalledWith(expect.objectContaining({ cwd }))
   })
@@ -166,7 +187,7 @@ describe('registerPiHandlers', () => {
       ['readme.md', 'pi-readme'],
     ])('%s -> %s', async (sessionFile, expected) => {
       const { handlers, peon } = setup()
-      const ctx = makeCtx('/work/project', sessionFile)
+      const ctx = makeCtx({ cwd: '/work/project', session: sessionFile })
 
       await emit(handlers, 'agent_settled', { type: 'agent_settled' }, ctx)
 
@@ -177,7 +198,7 @@ describe('registerPiHandlers', () => {
   describe('uses a pi-prefixed fallback session id when no valid session file exists', () => {
     it.each([undefined, '', '/just/a/path/', '////'])('%s -> %s', async (sessionFile) => {
       const { handlers, peon } = setup()
-      const ctx = makeCtx('/work/project', sessionFile)
+      const ctx = makeCtx({ cwd: '/work/project', session: sessionFile })
 
       await emit(handlers, 'agent_settled', { type: 'agent_settled' }, ctx)
 
@@ -199,8 +220,7 @@ describe('registerPiHandlers', () => {
 
   it('skips session_start when UI is unavailable', async () => {
     const { handlers, peon } = setup()
-    const ctx = makeCtx()
-    ctx.hasUI = false
+    const ctx = makeCtx({ hasUI: false })
 
     await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, ctx)
 
@@ -226,6 +246,24 @@ describe('registerPiHandlers', () => {
   })
 })
 
+describe('extractSessionName', () => {
+  it.each([
+    ['/tmp/sessions/specific-session.pi.json', 'specific-session.pi'],
+    ['/tmp/sessions/////specific-session.pi.json', 'specific-session.pi'],
+    ['simple-session', 'simple-session'],
+    ['readme.md', 'readme'],
+    ['C:\\a\\b.pi.json', 'b.pi'],
+    ['C:/a/b.pi.json', 'b.pi'],
+    ['C:\\sessions\\default.pi.json', 'default.pi'],
+  ])('%s -> %s', (sessionFile, expected) => {
+    expect(extractSessionName(sessionFile)).toBe(expected)
+  })
+
+  it.each([undefined, '', '/just/a/path/', '////', 'C:\\'])('returns undefined for %s', (sessionFile) => {
+    expect(extractSessionName(sessionFile)).toBeUndefined()
+  })
+})
+
 function setup() {
   const { pi, handlers, on } = makePi()
   const peon = makePeon()
@@ -234,5 +272,5 @@ function setup() {
 }
 
 function ctx(cwd: string, session: string) {
-  return makeCtx(cwd, `/sessions/${session}.json`)
+  return makeCtx({ cwd, session: `/sessions/${session}.json` })
 }

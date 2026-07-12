@@ -19,13 +19,18 @@ export function makePi() {
   return { pi, handlers, on }
 }
 
-export function makeCtx(cwd = '/work/project', session?: string): ExtensionContext {
-  const sessionFile = arguments.length >= 2 ? session : '/sessions/example-session.json'
+export interface MakeCtxOptions {
+  cwd?: string
+  session?: string
+  hasUI?: boolean
+}
+
+export function makeCtx({ cwd = '/work/project', hasUI = true, session }: MakeCtxOptions = {}): ExtensionContext {
   return {
     cwd,
-    hasUI: true,
+    hasUI,
     sessionManager: {
-      getSessionFile: vi.fn(() => sessionFile),
+      getSessionFile: vi.fn(() => session),
     },
   } as unknown as ExtensionContext
 }
