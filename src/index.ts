@@ -10,7 +10,7 @@ const REQUIRED_PI_VERSION = '0.80.5'
 
 // noinspection JSUnusedGlobalSymbols
 export default function (pi: Pick<ExtensionAPI, 'on'>, piVersion: string = VERSION) {
-  const effectivePiVersion = piVersion || '<unknown>'
+  const effectivePiVersion = normalizeVersion(piVersion)
   if (!meetsMinimumVersion(effectivePiVersion, REQUIRED_PI_VERSION)) {
     console.warn(
       `[pi-peon-adapter]: pi ${effectivePiVersion} is older than required ${REQUIRED_PI_VERSION}. Extension disabled.`,
@@ -33,9 +33,26 @@ export default function (pi: Pick<ExtensionAPI, 'on'>, piVersion: string = VERSI
   registerPiHandlers(pi, createPeonSink(peonPath))
 }
 
+function normalizeVersion(versionString: string): string {
+  if (!versionString || !hasAnyValidPart(versionString)) {
+    return '<unknown>'
+  }
+  return parseVersion(versionString).join('.')
+}
+
+function hasAnyValidPart(versionString: string): boolean {
+  return versionString.split('.', 3).some((n) => Number.isFinite(Number.parseInt(n, 10)))
+}
+
+function parseVersion(versionString: string): readonly [number, number, number] {
+  const parts = versionString.split('.', 3).map((n) => Number.parseInt(n, 10))
+  const safe = (n: number | undefined): number => (n != null && Number.isFinite(n) ? n : 0)
+  return [safe(parts[0]), safe(parts[1]), safe(parts[2])]
+}
+
 function meetsMinimumVersion(actual: string, minimum: string): boolean {
-  const [aMaj, aMin, aPatch] = actual.split('.').map((n) => Number.parseInt(n, 10))
-  const [mMaj, mMin, mPatch] = minimum.split('.').map((n) => Number.parseInt(n, 10))
+  const [aMaj, aMin, aPatch] = parseVersion(actual)
+  const [mMaj, mMin, mPatch] = parseVersion(minimum)
   if (aMaj !== mMaj) return aMaj > mMaj
   if (aMin !== mMin) return aMin > mMin
   return aPatch >= mPatch
