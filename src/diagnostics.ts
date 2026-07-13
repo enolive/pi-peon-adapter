@@ -10,27 +10,16 @@ export type DebugLogStatus =
     }
   | { enabled: false }
 
-let currentLogPath: string | undefined
-let disabledLogPath: string | undefined
-
 export function debugLog(level: DebugLogLevel, message: string): void {
   const status = getLogStatus()
   if (!status.enabled) {
     return
   }
 
-  if (status.logPath !== currentLogPath) {
-    currentLogPath = status.logPath
-    disabledLogPath = undefined
-  }
-  if (disabledLogPath === status.logPath) {
-    return
-  }
-
   try {
     appendFileSync(status.logPath, `${new Date().toISOString()} [${level}] ${message}\n`, 'utf8')
   } catch {
-    disabledLogPath = status.logPath
+    // ignore write errors
   }
 }
 

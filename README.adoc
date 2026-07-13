@@ -106,7 +106,7 @@ tail -f /tmp/pi-peon-debug.log
 | `UserPromptSubmit`
 | `task.acknowledge` or `user.spam`
 | 🔔
-| Fires when user input is received.
+| Fires when user input is received. Only for contexts with UI.
 
 | `agent_settled`
 | `Stop`

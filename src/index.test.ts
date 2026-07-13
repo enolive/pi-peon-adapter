@@ -5,7 +5,7 @@ import { makePi } from '../test/helpers/fake-pi'
 import extension from './index'
 import * as PeonModule from './peon'
 import * as PiModule from './pi'
-import { PeonSink } from './pi'
+import type { PeonSink } from './types'
 
 vi.mock('../src/peon')
 vi.mock('../src/pi')

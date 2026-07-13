@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { rememberEnv, type RememberedEnv } from '../test/helpers/env'
 import { createExecutable } from '../test/helpers/executable'
 import { createTempDirectory, type TempDirectory } from '../test/helpers/temp-directory'
-import type { HookPayload } from './pi'
+import type { HookPayload } from './types'
 import { createPeonSink, resolveExecutable } from './peon'
 
 vi.mock('node:child_process', async (importOriginal) => {

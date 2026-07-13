@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import { HookPayload, PeonSink } from '../../src/pi'
+import type { HookPayload, PeonSink } from '../../src/types'
 
 export function makePeon() {
   return {

@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rm } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { rememberEnv, type RememberedEnv } from '../test/helpers/env'
+import { type RememberedEnv, rememberEnv } from '../test/helpers/env'
 import { createTempDirectory, type TempDirectory } from '../test/helpers/temp-directory'
 import { debugLog, debugLogFields, getErrorMessage, getLogStatus } from './diagnostics'
 
@@ -71,19 +71,7 @@ describe('diagnostics', () => {
     expect(normalizeTimestamp(await readFile(logPath, 'utf8'))).toMatchSnapshot()
   })
 
-  it('disables writes for a failing log path', async () => {
-    const blockedLogPath = join(tempDirectory.path, 'blocked.log')
-    await mkdir(blockedLogPath)
-    process.env.PI_PEON_ADAPTER_DEBUG_LOG = blockedLogPath
-
-    debugLog('info', 'first')
-    await rm(blockedLogPath, { recursive: true, force: true })
-    debugLog('info', 'second')
-
-    expect(existsSync(blockedLogPath)).toBe(false)
-  })
-
-  it('writes again when the log path changes after a failure', async () => {
+  it('retries writes after a failing path', async () => {
     const blockedLogPath = join(tempDirectory.path, 'blocked.log')
     const recoveredLogPath = join(tempDirectory.path, 'recovered.log')
     await mkdir(blockedLogPath)

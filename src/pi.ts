@@ -1,31 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { randomUUID } from 'node:crypto'
 import { debugLogFields, type DebugLogValue } from './diagnostics'
-
-export type HookEvent =
-  | 'SessionStart'
-  | 'UserPromptSubmit'
-  | 'Stop'
-  | 'PermissionRequest'
-  | 'PostToolUseFailure'
-  | 'PreCompact'
-  | 'SessionEnd'
-
-export interface HookPayload {
-  hook_event_name: HookEvent
-  session_id: string
-  cwd: string
-  source?: string
-  tool_name?: string
-  error?: string
-  notification_type?: string
-
-  [key: string]: unknown
-}
-
-export interface PeonSink {
-  send(payload: HookPayload): void
-}
+import type { HookEvent, HookPayload, PeonSink } from './types'
 
 export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink): void {
   pi.on('session_start', (event, ctx) => {
@@ -74,6 +50,8 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink)
     const payload = {
       ...basePayload(ctx, 'PostToolUseFailure'),
       tool_name: 'Bash',
+      // PeonPing requires a message here but doesn't do anything with it.
+      // instead of transforming and safeguarding pi's result, just place a fixed string here
       error: 'bash failed',
     }
     peon.send(payload)

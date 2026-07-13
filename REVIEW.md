@@ -74,8 +74,11 @@ The following were intentionally omitted as researched-and-closed or deliberate 
 
 ---
 
-## Deferred / lower priority
+## Open for later
 
-Not withdrawn, but not blocking — listed for completeness:
+Found in a later review pass; not blocking, not yet acted on.
 
-(empty)
+- **Unhandled `stdin` stream `'error'`** (`src/peon.ts`): `child.on('error')` covers the `ChildProcess`, not `child.stdin`. If peon exits before draining its stdin, the next pipe write emits `EPIPE` on `child.stdin` with no listener → uncaught exception → pi crashes. The try/catch around `write`/`end` only catches synchronous throws. Fix: add `child.stdin?.on('error', …)`. The existing `swallows stdin write errors` test gives false confidence — it only mocks a synchronous throw.
+- **No `unref()` on the child or kill timers**: each `dispatchPeonEvent` keeps a child handle + two timers (5s SIGTERM, +1s SIGKILL) referenced for up to ~6s. `session_shutdown` is the ironic case — the "pi is quitting" event arms the thing that delays the quit. `unref()` doesn't break interaction (only the keep-loop-alive bit); fix is to unref the child + both timers. Prerequisite: land the stdin error listener first, since faster exit makes pipe-closed errors more likely. Open question whether to unref on `session_shutdown` only (sound events stay referenced) or everywhere (snappy exit, may cut off the last sound).
+- **`input` forwards `source: 'extension'` as `UserPromptSubmit`**: programmatic extension messages are not user submissions, and may trip peon's spam detection during agent runs. `rpc` (ACP/IDE) and `steer`/`followUp` (mid-stream user input) are genuine — keep those. Revisit if `extension`-source input is observed spamming; narrow to `source === 'interactive'` then.
+- **`session_before_compact` ignores `willRetry`**: overflow-recovery compactions retry the turn and each one sounds `resource.limit`, so a single turn can burst. Trivial guard: skip when `event.willRetry` (the retried turn produces its own `Stop` sound).
