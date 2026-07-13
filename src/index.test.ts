@@ -5,7 +5,7 @@ import { makePi } from '../test/helpers/fake-pi'
 import extension from './index'
 import * as PeonModule from './peon'
 import * as PiModule from './pi'
-import { PeonSink } from './pi'
+import type { PeonSink } from './types'
 
 vi.mock('../src/peon')
 vi.mock('../src/pi')
@@ -25,11 +25,17 @@ describe('extension entrypoint control flow', () => {
 
   describe('warns and registers no pi handlers when pi is older than the minimum', () => {
     it.each([
+      ['0.79', '0.79.0'],
       ['0.79.1', '0.79.1'],
+      ['0.80', '0.80.0'],
+      ['0.80.', '0.80.0'],
       ['0.80.3', '0.80.3'],
       ['0.80.4', '0.80.4'],
+      ['0.80.4.125', '0.80.4'],
+      ['0.80.4.revision-notes', '0.80.4'],
       ['', '<unknown>'],
-      ['bullshit', 'bullshit'],
+      ['bullshit', '<unknown>'],
+      ['this.is.not.a.version', '<unknown>'],
     ])('%s', (actualVersion, displayVersion) => {
       const { resolveExecutable, createPeonSink, registerPiHandlers } = loadExtension({
         resolvedPath: '/usr/bin/peon',
@@ -46,17 +52,19 @@ describe('extension entrypoint control flow', () => {
     })
   })
 
-  it('proceeds past the version check when pi meets the minimum', () => {
-    const { registerPiHandlers } = loadExtension({
-      resolvedPath: '/usr/bin/peon',
-      peon: makePeon(),
+  describe('proceeds past the version check when pi meets the minimum', () => {
+    it.each([undefined, '0.80.5', '0.80.6', '0.90', '1', 'v1.2.3'])('%s', (actualVersion) => {
+      const { registerPiHandlers } = loadExtension({
+        resolvedPath: '/usr/bin/peon',
+        peon: makePeon(),
+      })
+      const { pi } = makePi()
+
+      extension(pi, actualVersion)
+
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('older than required'))
+      expect(registerPiHandlers).toHaveBeenCalledWith(pi, expect.anything())
     })
-    const { pi } = makePi()
-
-    extension(pi, '0.80.5')
-
-    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('older than required'))
-    expect(registerPiHandlers).toHaveBeenCalledWith(pi, expect.anything())
   })
 
   it('warns and registers no pi handlers when peon cannot be resolved', () => {

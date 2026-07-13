@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { accessSync, constants as fsConstants } from 'node:fs'
 import { delimiter, isAbsolute, join } from 'node:path'
 import { getErrorMessage, debugLogFields, type DebugLogValue } from './diagnostics'
-import type { HookPayload, PeonSink } from './pi'
+import type { HookPayload, PeonSink } from './types'
 
 function canExecute(path: string): boolean {
   try {
@@ -77,12 +77,12 @@ function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
   }, 5000)
 
   child.on('error', (error) => {
+    clearTimeout(timeout)
+    clearTimeout(escalation)
     logPeonEvent('error', peonPath, payload, {
       decision: 'child_error',
       error: getErrorMessage(error),
     })
-    clearTimeout(timeout)
-    clearTimeout(escalation)
   })
 
   child.on('close', (code, signal) => {
@@ -92,7 +92,7 @@ function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
       // don't log successful exits
       return
     }
-    logPeonEvent('info', peonPath, payload, {
+    logPeonEvent('error', peonPath, payload, {
       decision: 'child_close',
       code,
       signal,

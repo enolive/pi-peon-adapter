@@ -15,9 +15,11 @@ This package is a pi extension adapter that maps pi lifecycle events to peon not
 
 ## Runtime behavior
 
-- `src/index.ts` is the composition boundary
+- `src/index.ts` is the composition boundary.
 - `src/pi.ts` owns pi event mapping and guard decisions.
 - `src/peon.ts` owns executable resolution and fire-and-forget child-process dispatch.
+- `src/types.ts` owns shared types.
+- `src/diagnostics.ts` owns debug logging.
 
 ## Diagnostics expectations
 
