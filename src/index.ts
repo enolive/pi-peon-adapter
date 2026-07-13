@@ -1,11 +1,11 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { VERSION } from '@earendil-works/pi-coding-agent'
+import semver from 'semver'
 import { createPeonSink, resolveExecutable } from './peon'
 import { registerPiHandlers } from './pi'
 import { getLogStatus } from './diagnostics'
 
 // Minimum pi version that provides the `agent_settled` event (pi issue #2110).
-// Below this, the `Stop` / `task.complete` sound silently never fires.
 const REQUIRED_PI_VERSION = '0.80.5'
 
 // noinspection JSUnusedGlobalSymbols
@@ -34,26 +34,14 @@ export default function (pi: Pick<ExtensionAPI, 'on'>, piVersion: string = VERSI
 }
 
 function normalizeVersion(versionString: string): string {
-  if (!versionString || !hasAnyValidPart(versionString)) {
+  if (!versionString) {
     return '<unknown>'
   }
-  return parseVersion(versionString).join('.')
-}
-
-function hasAnyValidPart(versionString: string): boolean {
-  return versionString.split('.', 3).some((n) => Number.isFinite(Number.parseInt(n, 10)))
-}
-
-function parseVersion(versionString: string): readonly [number, number, number] {
-  const parts = versionString.split('.', 3).map((n) => Number.parseInt(n, 10))
-  const safe = (n: number | undefined): number => (n != null && Number.isFinite(n) ? n : 0)
-  return [safe(parts[0]), safe(parts[1]), safe(parts[2])]
+  const coerced = semver.coerce(versionString)
+  return coerced ? coerced.version : '<unknown>'
 }
 
 function meetsMinimumVersion(actual: string, minimum: string): boolean {
-  const [aMaj, aMin, aPatch] = parseVersion(actual)
-  const [mMaj, mMin, mPatch] = parseVersion(minimum)
-  if (aMaj !== mMaj) return aMaj > mMaj
-  if (aMin !== mMin) return aMin > mMin
-  return aPatch >= mPatch
+  const coerced = semver.coerce(actual)
+  return coerced ? semver.gte(coerced, minimum) : false
 }

@@ -53,7 +53,7 @@ describe('extension entrypoint control flow', () => {
   })
 
   describe('proceeds past the version check when pi meets the minimum', () => {
-    it.each([undefined, '0.80.5', '0.90', '1'])('%s', (actualVersion) => {
+    it.each([undefined, '0.80.5', '0.80.6', '0.90', '1', 'v1.2.3'])('%s', (actualVersion) => {
       const { registerPiHandlers } = loadExtension({
         resolvedPath: '/usr/bin/peon',
         peon: makePeon(),
