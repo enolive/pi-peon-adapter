@@ -136,7 +136,7 @@ tail -f /tmp/pi-peon-debug.log
 | `PermissionRequest`
 | `input.required`
 | 🔇
-| pi does not support this event, so peon never receives it.
+| pi does not support this event by design, so peon never receives it.
 |===
 
 Every payload includes `cwd` and a `session_id` prefixed with `pi-`.
