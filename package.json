@@ -47,6 +47,7 @@
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "^0.80.6",
     "@eslint/js": "^9.0.0",
+    "@gotgenes/pi-permission-system": "^20.7.2",
     "@types/node": "^22.0.0",
     "@types/semver": "^7.0.0",
     "@vitest/coverage-v8": "^4.1.10",

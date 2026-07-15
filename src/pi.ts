@@ -1,17 +1,18 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { randomUUID } from 'node:crypto'
-import { debugLogFields, type DebugLogValue } from './diagnostics'
+import { debugLogFields, type DebugLogLevel, type DebugLogValue } from './diagnostics'
 import type { HookEvent, HookPayload, PeonSink } from './types'
+import { PERMISSIONS_UI_PROMPT_CHANNEL } from '@gotgenes/pi-permission-system'
 
-export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink): void {
+export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon: PeonSink): void {
   pi.on('session_start', (event, ctx) => {
-    logReceived(event, ctx, { reason: event.reason, has_ui: ctx.hasUI })
+    logReceived(event.type, ctx.cwd, { reason: event.reason, has_ui: ctx.hasUI })
     if (!ctx.hasUI) {
-      logSkip(event, ctx, 'no_ui')
+      logSkip(event.type, ctx.cwd, 'no_ui')
       return
     }
     if (event.reason === 'reload' || event.reason === 'fork') {
-      logSkip(event, ctx, event.reason)
+      logSkip(event.type, ctx.cwd, event.reason)
       return
     }
     const payload = {
@@ -22,9 +23,9 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink)
   })
 
   pi.on('input', (event, ctx) => {
-    logReceived(event, ctx, { source: event.source })
+    logReceived(event.type, ctx.cwd, { source: event.source })
     if (!ctx.hasUI) {
-      logSkip(event, ctx, 'no_ui')
+      logSkip(event.type, ctx.cwd, 'no_ui')
       return
     }
     const payload = basePayload(ctx, 'UserPromptSubmit')
@@ -32,19 +33,19 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink)
   })
 
   pi.on('agent_settled', (event, ctx) => {
-    logReceived(event, ctx)
+    logReceived(event.type, ctx.cwd)
     const payload = basePayload(ctx, 'Stop')
     peon.send(payload)
   })
 
   pi.on('tool_execution_end', (event, ctx) => {
-    logReceived(event, ctx, { tool: event.toolName, is_error: event.isError })
+    logReceived(event.type, ctx.cwd, { tool: event.toolName, is_error: event.isError })
     if (!event.isError) {
-      logSkip(event, ctx, 'not_error', { tool: event.toolName })
+      logSkip(event.type, ctx.cwd, 'not_error', { tool: event.toolName })
       return
     }
     if (event.toolName !== 'bash') {
-      logSkip(event, ctx, 'non_bash_tool', { tool: event.toolName })
+      logSkip(event.type, ctx.cwd, 'non_bash_tool', { tool: event.toolName })
       return
     }
     const payload = {
@@ -58,16 +59,39 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on'>, peon: PeonSink)
   })
 
   pi.on('session_before_compact', (event, ctx) => {
-    logReceived(event, ctx)
+    logReceived(event.type, ctx.cwd)
     const payload = basePayload(ctx, 'PreCompact')
     peon.send(payload)
   })
 
   pi.on('session_shutdown', (event, ctx) => {
-    logReceived(event, ctx)
+    logReceived(event.type, ctx.cwd)
     const payload = basePayload(ctx, 'SessionEnd')
     peon.send(payload)
   })
+
+  pi.events.on(PERMISSIONS_UI_PROMPT_CHANNEL, (data) => {
+    const hookName = 'permission_requested'
+    logReceived(hookName)
+    if (!isPermissionEvent(data)) {
+      logSkip('permission_requested', undefined, 'invalid_data')
+      return
+    }
+    // pass only minimal subset.
+    // as ctx is not available here, we can neither safely determine session_id nor cwd.
+    // using a different mechanism for fields not actually required by peon seems wrong.
+    const tool_name = data.surface
+    const payload: HookPayload = { hook_event_name: 'PermissionRequest', tool_name }
+    peon.send(payload)
+  })
+}
+
+type PermissionEvent = {
+  surface: string
+}
+
+const isPermissionEvent = (object: unknown): object is PermissionEvent => {
+  return object != null && typeof object === 'object' && 'surface' in object && typeof object.surface === 'string'
 }
 
 /**
@@ -99,19 +123,23 @@ function basePayload(ctx: ExtensionContext, hook_event_name: HookEvent): HookPay
   }
 }
 
-function logEvent(hook: string, fields: Record<string, DebugLogValue>): void {
-  debugLogFields('info', { hook, ...fields })
-}
-
-function logReceived(event: { type: string }, ctx: ExtensionContext, fields: Record<string, DebugLogValue> = {}): void {
-  logEvent(event.type, { phase: 'received', cwd: ctx.cwd, ...fields })
+function logReceived(
+  eventName: string,
+  cwd: string | undefined = undefined,
+  fields: Record<string, DebugLogValue> = {},
+): void {
+  logEvent(eventName, { phase: 'received', cwd, ...fields })
 }
 
 function logSkip(
-  event: { type: string },
-  ctx: ExtensionContext,
+  eventName: string,
+  cwd: string | undefined,
   reason: string,
   fields: Record<string, DebugLogValue> = {},
 ): void {
-  debugLogFields('warn', { hook: event.type, decision: 'skip', reason, cwd: ctx.cwd, ...fields })
+  logEvent(eventName, { phase: 'skip', reason, cwd, ...fields }, 'warn')
+}
+
+function logEvent(hook: string, fields: Record<string, DebugLogValue>, level: DebugLogLevel = 'info'): void {
+  debugLogFields(level, { hook, ...fields })
 }

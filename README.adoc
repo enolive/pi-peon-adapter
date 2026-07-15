@@ -132,14 +132,14 @@ tail -f /tmp/pi-peon-debug.log
 | 🔇
 | Sent when the session runtime is shutting down. Cleanup only, PeonPing plays no sounds.
 
-| (not applicable)
+| `permissions:ui_prompt` (event bus)
 | `PermissionRequest`
 | `input.required`
-| 🔇
-| pi does not support this event by design, so peon never receives it.
+| 🔔
+| Carries only `hook_event_name` and `tool_name`. Requires the optional extension https://pi.dev/packages/@gotgenes/pi-permission-system[@gotgenes/pi-permission-system] to be installed.
 |===
 
-Every payload includes `cwd` and a `session_id` prefixed with `pi-`.
+Every payload includes `cwd` and a `session_id` prefixed with `pi-`, **except `PermissionRequest`**, which carries only `hook_event_name` and `tool_name` (see note above).
 
 TIP: You can turn individual CESP categories on and off to your likings in https://github.com/PeonPing/openpeon/blob/main/spec/cesp-v1.md[PeonPing's Configuration].
 

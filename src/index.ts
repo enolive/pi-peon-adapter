@@ -9,7 +9,7 @@ import { getLogStatus } from './diagnostics'
 const REQUIRED_PI_VERSION = '0.80.5'
 
 // noinspection JSUnusedGlobalSymbols
-export default function (pi: Pick<ExtensionAPI, 'on'>, piVersion: string = VERSION) {
+export default function (pi: Pick<ExtensionAPI, 'on' | 'events'>, piVersion: string = VERSION) {
   const effectivePiVersion = normalizeVersion(piVersion)
   if (!meetsMinimumVersion(effectivePiVersion, REQUIRED_PI_VERSION)) {
     console.warn(
