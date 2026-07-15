@@ -1,6 +1,13 @@
-import type { SessionBeforeCompactEvent } from '@earendil-works/pi-coding-agent'
+import type {
+  AgentSettledEvent,
+  InputEvent,
+  SessionBeforeCompactEvent,
+  SessionShutdownEvent,
+  SessionStartEvent,
+} from '@earendil-works/pi-coding-agent'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { emit, emitExtraEvent, makeCtx, makePi } from '../test/helpers/fake-pi'
+import type { ToolExecutionEndEvent } from '../test/helpers/fake-pi'
 import { makePeon } from '../test/helpers/fake-peon'
 import { extractSessionName, registerPiHandlers } from './pi'
 import { PERMISSIONS_UI_PROMPT_CHANNEL } from './types'
@@ -40,16 +47,13 @@ describe('registerPiHandlers', () => {
         const { handlers, peon } = setup()
         const cwd = '/startup/project'
         const session = 'startup-session'
+        const ctx = makeCtx({
+          cwd,
+          session: `/sessions/${session}.json`,
+        })
+        const event: SessionStartEvent = { type: 'session_start', reason }
 
-        await emit(
-          handlers,
-          'session_start',
-          { type: 'session_start', reason },
-          makeCtx({
-            cwd,
-            session: `/sessions/${session}.json`,
-          }),
-        )
+        await emit(handlers, 'session_start', event, ctx)
 
         expect(peon.send).toHaveBeenCalledWith({
           hook_event_name: 'SessionStart',
@@ -63,8 +67,9 @@ describe('registerPiHandlers', () => {
     it('skips when UI is unavailable', async () => {
       const { handlers, peon } = setup()
       const ctx = makeCtx({ hasUI: false })
+      const event: SessionStartEvent = { type: 'session_start', reason: 'startup' }
 
-      await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, ctx)
+      await emit(handlers, 'session_start', event, ctx)
 
       expect(peon.send).not.toHaveBeenCalled()
     })
@@ -72,8 +77,9 @@ describe('registerPiHandlers', () => {
     describe('skips when reason is', () => {
       it.each(['reload', 'fork'] as const)('%s', async (reason) => {
         const { handlers, peon } = setup()
+        const event: SessionStartEvent = { type: 'session_start', reason }
 
-        await emit(handlers, 'session_start', { type: 'session_start', reason })
+        await emit(handlers, 'session_start', event)
 
         expect(peon.send).not.toHaveBeenCalled()
       })
@@ -86,18 +92,15 @@ describe('registerPiHandlers', () => {
         const { handlers, peon } = setup()
         const cwd = '/prompt/project'
         const session = 'prompt-session'
+        const ctx = makeCtx({ cwd, session: `/sessions/${session}.json` })
+        const event: InputEvent = {
+          type: 'input',
+          text: 'hello',
+          images: [],
+          source,
+        }
 
-        await emit(
-          handlers,
-          'input',
-          {
-            type: 'input',
-            text: 'hello',
-            images: [],
-            source,
-          },
-          makeCtx({ cwd, session: `/sessions/${session}.json` }),
-        )
+        await emit(handlers, 'input', event, ctx)
 
         expect(peon.send).toHaveBeenCalledWith({
           hook_event_name: 'UserPromptSubmit',
@@ -110,18 +113,14 @@ describe('registerPiHandlers', () => {
     it('skips when UI is unavailable', async () => {
       const { handlers, peon } = setup()
       const ctx = makeCtx({ hasUI: false })
+      const event: InputEvent = {
+        type: 'input',
+        text: 'hello',
+        images: [],
+        source: 'interactive',
+      }
 
-      await emit(
-        handlers,
-        'input',
-        {
-          type: 'input',
-          text: 'hello',
-          images: [],
-          source: 'interactive',
-        },
-        ctx,
-      )
+      await emit(handlers, 'input', event, ctx)
 
       expect(peon.send).not.toHaveBeenCalled()
     })
@@ -132,16 +131,13 @@ describe('registerPiHandlers', () => {
       const { handlers, peon } = setup()
       const cwd = '/agent-end/project'
       const session = 'agent-end-session'
+      const ctx = makeCtx({
+        cwd,
+        session: `/sessions/${session}.json`,
+      })
+      const event: AgentSettledEvent = { type: 'agent_settled' }
 
-      await emit(
-        handlers,
-        'agent_settled',
-        { type: 'agent_settled' },
-        makeCtx({
-          cwd,
-          session: `/sessions/${session}.json`,
-        }),
-      )
+      await emit(handlers, 'agent_settled', event, ctx)
 
       expect(peon.send).toHaveBeenCalledWith({
         hook_event_name: 'Stop',
@@ -156,19 +152,16 @@ describe('registerPiHandlers', () => {
       const { handlers, peon } = setup()
       const cwd = '/tool-error/project'
       const session = 'tool-error-session'
+      const ctx = makeCtx({ cwd, session: `/sessions/${session}.json` })
+      const event: ToolExecutionEndEvent = {
+        type: 'tool_execution_end',
+        toolCallId: 'tool-1',
+        toolName: 'bash',
+        result: 'failed',
+        isError: true,
+      }
 
-      await emit(
-        handlers,
-        'tool_execution_end',
-        {
-          type: 'tool_execution_end',
-          toolCallId: 'tool-1',
-          toolName: 'bash',
-          result: 'failed',
-          isError: true,
-        },
-        makeCtx({ cwd, session: `/sessions/${session}.json` }),
-      )
+      await emit(handlers, 'tool_execution_end', event, ctx)
 
       expect(peon.send).toHaveBeenCalledWith({
         hook_event_name: 'PostToolUseFailure',
@@ -183,15 +176,16 @@ describe('registerPiHandlers', () => {
       it.each([
         ['successful bash execution', { toolName: 'bash', isError: false }],
         ['non-bash error', { toolName: 'read', isError: true }],
-      ] as const)('%s', async (_label, event) => {
+      ] as const)('%s', async (_label, eventPayload) => {
         const { handlers, peon } = setup()
-
-        await emit(handlers, 'tool_execution_end', {
+        const event: ToolExecutionEndEvent = {
           type: 'tool_execution_end',
           toolCallId: 'tool-1',
           result: undefined,
-          ...event,
-        })
+          ...eventPayload,
+        }
+
+        await emit(handlers, 'tool_execution_end', event)
 
         expect(peon.send).not.toHaveBeenCalled()
       })
@@ -205,16 +199,12 @@ describe('registerPiHandlers', () => {
       const session = 'compact-session'
       // only part of the data is actually used in our implementation
       // mocking a complex payload just to use part of it feels too expensive
+      const ctx = makeCtx({ cwd, session: `/sessions/${session}.json` })
       const partialPayload: Partial<SessionBeforeCompactEvent> = {
         type: 'session_before_compact',
       }
 
-      await emit(
-        handlers,
-        'session_before_compact',
-        partialPayload as SessionBeforeCompactEvent,
-        makeCtx({ cwd, session: `/sessions/${session}.json` }),
-      )
+      await emit(handlers, 'session_before_compact', partialPayload as SessionBeforeCompactEvent, ctx)
 
       expect(peon.send).toHaveBeenCalledWith({
         hook_event_name: 'PreCompact',
@@ -229,16 +219,13 @@ describe('registerPiHandlers', () => {
       const { handlers, peon } = setup()
       const cwd = '/shutdown/project'
       const session = 'shutdown-session'
+      const event: SessionShutdownEvent = { type: 'session_shutdown', reason: 'quit' }
+      const ctx = makeCtx({
+        cwd,
+        session: `/sessions/${session}.json`,
+      })
 
-      await emit(
-        handlers,
-        'session_shutdown',
-        { type: 'session_shutdown', reason: 'quit' },
-        makeCtx({
-          cwd,
-          session: `/sessions/${session}.json`,
-        }),
-      )
+      await emit(handlers, 'session_shutdown', event, ctx)
 
       expect(peon.send).toHaveBeenCalledWith({
         hook_event_name: 'SessionEnd',
@@ -249,13 +236,18 @@ describe('registerPiHandlers', () => {
   })
 
   describe('when a permissions:ui_prompt event fires from the optional pi-permissions extension', () => {
-    it('maps event to PermissionRequest', () => {
+    it('maps event to PermissionRequest, deriving cwd from process.cwd()', () => {
       const { peon, extraHandlers } = setup()
+      const cwd = '/perm/project'
+      vi.spyOn(process, 'cwd').mockReturnValue(cwd)
 
       emitExtraEvent(extraHandlers, PERMISSIONS_UI_PROMPT_CHANNEL, { surface: 'read' })
 
-      const expectedPayload = { hook_event_name: 'PermissionRequest', tool_name: 'read' }
-      expect(peon.send).toHaveBeenCalledWith(expectedPayload)
+      expect(peon.send).toHaveBeenCalledWith({
+        hook_event_name: 'PermissionRequest',
+        tool_name: 'read',
+        cwd,
+      })
     })
 
     describe('skips on missing surface in the given data', () => {

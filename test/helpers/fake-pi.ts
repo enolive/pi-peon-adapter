@@ -4,6 +4,13 @@ import { vi } from 'vitest'
 type EventName = ExtensionEvent['type']
 type EventFor<TEvent extends EventName> = Extract<ExtensionEvent, { type: TEvent }>
 type Handler<TEvent extends EventName> = (event: EventFor<TEvent>, ctx: ExtensionContext) => void | Promise<void>
+
+// WORKAROUND: pi does not re-export ToolExecutionEndEvent (nor the other
+// ToolExecution* events) from its package entry point, even though the event
+// is part of the exported ExtensionEvent union and is fully wired through
+// pi.on('tool_execution_end', ...). Derive it from the union until upstream
+// re-exports it. See dist/core/extensions/types.d.ts.
+export type ToolExecutionEndEvent = EventFor<'tool_execution_end'>
 type HandlerMap = Partial<{
   [TEvent in EventName]: Handler<TEvent>
 }>

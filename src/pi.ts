@@ -76,11 +76,18 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon
       logSkip('permission_requested', undefined, 'invalid_data')
       return
     }
-    // pass only minimal subset.
-    // as ctx is not available here, we can neither safely determine session_id nor cwd.
-    // using a different mechanism for fields not actually required by peon seems wrong.
+    // ctx is unavailable on this EventEmitter channel.
+    // Derive cwd live from
+    // process.cwd() so peon can resolve the same project title as for other
+    // events.
+    // session_id is intentionally omitted: the adapter's synthetic
+    // pi-<id> does not map to anything peon uses for titles.
     const tool_name = data.surface
-    const payload: HookPayload = { hook_event_name: 'PermissionRequest', tool_name }
+    const payload: HookPayload = {
+      hook_event_name: 'PermissionRequest',
+      tool_name,
+      cwd: process.cwd(),
+    }
     peon.send(payload)
   })
 }

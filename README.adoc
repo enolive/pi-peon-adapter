@@ -136,7 +136,8 @@ tail -f /tmp/pi-peon-debug.log
 | `PermissionRequest`
 | `input.required`
 | 🔔
-| Carries only `hook_event_name` and `tool_name`. Requires the optional extension https://pi.dev/packages/@gotgenes/pi-permission-system[@gotgenes/pi-permission-system] to be installed.
+| Will not carry over `session_id` as events on the event bus do not have access to it.
+Requires the optional extension https://pi.dev/packages/@gotgenes/pi-permission-system[@gotgenes/pi-permission-system] to be installed.
 |===
 
 Every payload includes `cwd` and a `session_id` prefixed with `pi-`, **except `PermissionRequest`**, (see note above).

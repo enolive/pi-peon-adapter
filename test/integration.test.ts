@@ -59,7 +59,7 @@ describe('pi peon adapter integration', () => {
     const finalPayloads = await waitForPayloads(peon.payloadPath, ++events)
 
     expect(events).toBe(5)
-    expect(finalPayloads).toMatchSnapshot()
+    expect(finalPayloads.map(normalizePayload)).toMatchSnapshot()
   })
 
   it('writes debug log lines for received events and sink handoff', async () => {
@@ -121,6 +121,7 @@ async function normalizedDebugLog(logPath: string): Promise<string> {
   return (await readFile(logPath, 'utf8'))
     .replaceAll(/^\S+ /gm, '<timestamp> ')
     .replaceAll(/peon_path=\S+\/peon/g, 'peon_path=<peon>')
+    .replaceAll(process.cwd(), '<cwd>')
 }
 
 async function waitForPayloads(payloadPath: string, count: number): Promise<unknown[]> {
@@ -143,6 +144,16 @@ async function waitForPayloads(payloadPath: string, count: number): Promise<unkn
 
 function delay(delay: number) {
   return new Promise((resolve) => setTimeout(resolve, delay))
+}
+
+function normalizePayload(payload: unknown): unknown {
+  if (payload && typeof payload === 'object' && 'cwd' in payload) {
+    const record = payload as Record<string, unknown>
+    if (record.cwd === process.cwd()) {
+      return { ...record, cwd: '<cwd>' }
+    }
+  }
+  return payload
 }
 
 async function readPayloads(payloadPath: string): Promise<unknown[]> {
