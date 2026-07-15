@@ -329,8 +329,8 @@ describe('extractSessionName', () => {
 })
 
 function setup() {
-  const { pi, handlers, extraHandlers, on, eventsOn } = makePi()
+  const fakePi = makePi()
   const peon = makePeon()
-  registerPiHandlers(pi, peon)
-  return { pi, handlers, extraHandlers, on, peon, eventsOn }
+  registerPiHandlers(fakePi.pi, peon)
+  return { ...fakePi, peon }
 }
