@@ -6,7 +6,7 @@ import { rememberEnv, type RememberedEnv } from './helpers/env'
 import { createCaptureExecutable } from './helpers/executable'
 import { emit, emitExtraEvent, makeCtx, makePi } from './helpers/fake-pi'
 import { createTempDirectory, type TempDirectory } from './helpers/temp-directory'
-import { PERMISSIONS_UI_PROMPT_CHANNEL } from '@gotgenes/pi-permission-system'
+import { PERMISSIONS_UI_PROMPT_CHANNEL } from '../src/types'
 
 let tempDirectory: TempDirectory
 let env: RememberedEnv
@@ -58,6 +58,7 @@ describe('pi peon adapter integration', () => {
     )
     const finalPayloads = await waitForPayloads(peon.payloadPath, ++events)
 
+    expect(events).toBe(5)
     expect(finalPayloads).toMatchSnapshot()
   })
 
@@ -97,6 +98,7 @@ describe('pi peon adapter integration', () => {
     )
     await waitForPayloads(peon.payloadPath, ++events)
 
+    expect(events).toBe(3)
     expect(await normalizedDebugLog(debugLogPath)).toMatchSnapshot()
   })
 })

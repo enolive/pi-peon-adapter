@@ -1,8 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { randomUUID } from 'node:crypto'
 import { debugLogFields, type DebugLogLevel, type DebugLogValue } from './diagnostics'
-import type { HookEvent, HookPayload, PeonSink } from './types'
-import { PERMISSIONS_UI_PROMPT_CHANNEL } from '@gotgenes/pi-permission-system'
+import { type HookEvent, type HookPayload, type PeonSink, PERMISSIONS_UI_PROMPT_CHANNEL } from './types'
 
 export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon: PeonSink): void {
   pi.on('session_start', (event, ctx) => {

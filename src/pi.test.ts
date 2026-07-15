@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { emit, emitExtraEvent, makeCtx, makePi } from '../test/helpers/fake-pi'
 import { makePeon } from '../test/helpers/fake-peon'
 import { extractSessionName, registerPiHandlers } from './pi'
-import { PERMISSIONS_UI_PROMPT_CHANNEL } from '@gotgenes/pi-permission-system'
+import { PERMISSIONS_UI_PROMPT_CHANNEL } from './types'
 
 const randomUUID = vi.hoisted(() => vi.fn<() => `${string}-${string}-${string}-${string}-${string}`>())
 
