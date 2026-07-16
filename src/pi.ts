@@ -1,9 +1,21 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { randomUUID } from 'node:crypto'
 import { debugLogFields, type DebugLogLevel, type DebugLogValue } from './diagnostics'
-import { type HookEvent, type HookPayload, type PeonSink, PERMISSIONS_UI_PROMPT_CHANNEL } from './types'
+import {
+  type HookEvent,
+  type HookPayload,
+  type PeonSink,
+  type PermissionDecisionEvent,
+  type PermissionUiPromptEvent,
+  PERMISSIONS_DECISION_CHANNEL,
+  PERMISSIONS_UI_PROMPT_CHANNEL,
+} from './types'
 
 export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon: PeonSink): void {
+  // session_start captures the session id and cwd so the permission:ui_prompt
+  // handler (which has no ctx) can include them; session_shutdown clears it.
+  let remembered: { sessionId: string; cwd: string } | undefined
+
   pi.on('session_start', (event, ctx) => {
     logReceived(event.type, ctx.cwd, { reason: event.reason, has_ui: ctx.hasUI })
     if (!ctx.hasUI) {
@@ -14,11 +26,14 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon
       logSkip(event.type, ctx.cwd, event.reason)
       return
     }
-    const payload = {
-      ...basePayload(ctx, 'SessionStart'),
+    const session_id = sessionIdFor(ctx)
+    remembered = { sessionId: session_id, cwd: ctx.cwd }
+    peon.send({
+      hook_event_name: 'SessionStart',
+      session_id,
+      cwd: ctx.cwd,
       source: event.reason === 'resume' ? 'resume' : 'startup',
-    }
-    peon.send(payload)
+    })
   })
 
   pi.on('input', (event, ctx) => {
@@ -67,37 +82,70 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon
     logReceived(event.type, ctx.cwd)
     const payload = basePayload(ctx, 'SessionEnd')
     peon.send(payload)
+    remembered = undefined
   })
 
   pi.events.on(PERMISSIONS_UI_PROMPT_CHANNEL, (data) => {
-    const hookName = 'permission_requested'
-    logReceived(hookName)
-    if (!isPermissionEvent(data)) {
+    logReceived('permission_requested')
+    if (!isPermissionUiPromptEvent(data)) {
       logSkip('permission_requested', undefined, 'invalid_data')
       return
     }
-    // ctx is unavailable on this EventEmitter channel.
-    // Derive cwd live from
-    // process.cwd() so peon can resolve the same project title as for other
-    // events.
-    // session_id is intentionally omitted: the adapter's synthetic
-    // pi-<id> does not map to anything peon uses for titles.
-    const tool_name = data.surface
+    if (!data.surface) {
+      logSkip('permission_requested', undefined, 'no_surface')
+      return
+    }
+    if (!remembered) {
+      logSkip('permission_requested', undefined, 'no_session_context')
+      return
+    }
     const payload: HookPayload = {
       hook_event_name: 'PermissionRequest',
-      tool_name,
-      cwd: process.cwd(),
+      tool_name: data.surface,
+      session_id: remembered.sessionId,
+      cwd: remembered.cwd,
+    }
+    peon.send(payload)
+  })
+
+  pi.events.on(PERMISSIONS_DECISION_CHANNEL, (data) => {
+    logReceived('permission_decision')
+    if (!isPermissionDecisionEvent(data)) {
+      logSkip('permission_decision', undefined, 'invalid_data')
+      return
+    }
+    if (data.result !== 'allow') {
+      logSkip('permission_decision', undefined, 'denied', { surface: data.surface, result: data.result })
+      return
+    }
+    if (!remembered) {
+      logSkip('permission_decision', undefined, 'no_session_context')
+      return
+    }
+    const payload: HookPayload = {
+      hook_event_name: 'PreToolUse',
+      tool_name: data.surface,
+      session_id: remembered.sessionId,
+      cwd: remembered.cwd,
     }
     peon.send(payload)
   })
 }
 
-type PermissionEvent = {
-  surface: string
+const isPermissionUiPromptEvent = (data: unknown): data is PermissionUiPromptEvent => {
+  if (data == null || typeof data !== 'object') {
+    return false
+  }
+  const obj = data as Record<string, unknown>
+  return typeof obj.surface === 'string' || obj.surface === null
 }
 
-const isPermissionEvent = (object: unknown): object is PermissionEvent => {
-  return object != null && typeof object === 'object' && 'surface' in object && typeof object.surface === 'string'
+const isPermissionDecisionEvent = (data: unknown): data is PermissionDecisionEvent => {
+  if (data == null || typeof data !== 'object') {
+    return false
+  }
+  const obj = data as Record<string, unknown>
+  return typeof obj.surface === 'string' && (obj.result === 'allow' || obj.result === 'deny')
 }
 
 /**

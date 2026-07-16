@@ -136,11 +136,20 @@ tail -f /tmp/pi-peon-debug.log
 | `PermissionRequest`
 | `input.required`
 | 🔔
-| Will not carry over `session_id` as events on the event bus do not have access to it.
-Requires the optional extension https://pi.dev/packages/@gotgenes/pi-permission-system[@gotgenes/pi-permission-system] to be installed.
+| Fires immediately before the user-facing permission prompt is shown. `tool_name` carries the event's `surface`; `session_id` lets peon correlate the popup with the following `PreToolUse` dismissal.
+
+| `permissions:decision` (event bus)
+| `PreToolUse`
+| —
+| 🔇
+| Sourced from the permission system's decision channel; `tool_name` carries the decision's `surface`. Only `result=allow` decisions are forwarded; deny decisions are skipped. PeonPing plays no sound, but will remove "needs aproval" in compatible terminals.
 |===
 
-Every payload includes `cwd` and a `session_id` prefixed with `pi-`, **except `PermissionRequest`**, (see note above).
+Every payload includes `cwd` and a `session_id` prefixed with `pi-`.
+
+NOTE: The two event-bus rows require the optional extension https://pi.dev/packages/@gotgenes/pi-permission-system[@gotgenes/pi-permission-system] to be installed. Those channels carry no pi context, so `session_id` and `cwd` are reused from the most recent `session_start` captured by the adapter; if no `session_start` has fired yet (or after `session_shutdown`), the event is skipped rather than sent with a guessed `cwd` or `session_id`.
+
+NOTE: `PreToolUse` is sourced from the `permissions:decision` channel rather than any of pi's `tool_execution_*` lifecycle events. Per pi's documented lifecycle, `tool_execution_start` is a _preflight_ event that fires *before* the `tool_call` gate (where the permission system runs), so it fires before the permission decision and even for tools that end up denied; `tool_execution_update` fires only for non-blocked calls, but multiple times with each update; `tool_execution_end` always fires (including on block, with `isError=true`). None of them mark "the tool is about to run" exactly once after a successful gate. `permissions:decision` with `result=allow` does, which is why it is the source for `PreToolUse`.
 
 TIP: You can turn individual CESP categories on and off to your likings in https://github.com/PeonPing/openpeon/blob/main/spec/cesp-v1.md[PeonPing's Configuration].
 
