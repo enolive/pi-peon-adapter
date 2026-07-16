@@ -1,10 +1,19 @@
+export type { PermissionDecisionEvent, PermissionUiPromptEvent } from '@gotgenes/pi-permission-system'
+
 export type HookEvent =
-  'SessionStart' | 'UserPromptSubmit' | 'Stop' | 'PostToolUseFailure' | 'PreCompact' | 'SessionEnd'
+  | 'SessionStart'
+  | 'UserPromptSubmit'
+  | 'Stop'
+  | 'PreToolUse'
+  | 'PostToolUseFailure'
+  | 'PreCompact'
+  | 'SessionEnd'
+  | 'PermissionRequest'
 
 export interface HookPayload {
   hook_event_name: HookEvent
-  session_id: string
-  cwd: string
+  cwd?: string
+  session_id?: string
   source?: string
   tool_name?: string
   error?: string
