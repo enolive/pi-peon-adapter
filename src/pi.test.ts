@@ -11,6 +11,7 @@ import type { ToolExecutionEndEvent } from '../test/helpers/fake-pi'
 import { makePeon } from '../test/helpers/fake-peon'
 import { extractSessionName, registerPiHandlers } from './pi'
 import { PERMISSIONS_DECISION_CHANNEL, PERMISSIONS_UI_PROMPT_CHANNEL } from './types'
+import type { PermissionDecisionEvent } from '@gotgenes/pi-permission-system'
 
 const randomUUID = vi.hoisted(() => vi.fn<() => `${string}-${string}-${string}-${string}-${string}`>())
 
@@ -193,106 +194,6 @@ describe('registerPiHandlers', () => {
     })
   })
 
-  describe('when a permissions:decision event fires from the optional pi-permissions extension', () => {
-    describe('skips when no session context is remembered', () => {
-      it('before any session_start has fired', () => {
-        const { peon, extraHandlers } = setup()
-
-        emitExtraEvent(extraHandlers, PERMISSIONS_DECISION_CHANNEL, {
-          surface: 'bash',
-          value: 'ls',
-          result: 'allow',
-          resolution: 'auto_approved',
-          origin: null,
-          agentName: null,
-          matchedPattern: null,
-        })
-
-        expect(peon.send).not.toHaveBeenCalled()
-      })
-
-      it('after session_shutdown has cleared the remembered context', async () => {
-        const { handlers, peon, extraHandlers } = setup()
-        const ctx = makeCtx({ cwd: '/shutdown/project', session: '/sessions/shutdown-session.json' })
-        await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, ctx)
-        await emit(handlers, 'session_shutdown', { type: 'session_shutdown', reason: 'quit' }, ctx)
-
-        emitExtraEvent(extraHandlers, PERMISSIONS_DECISION_CHANNEL, {
-          surface: 'bash',
-          value: 'ls',
-          result: 'allow',
-          resolution: 'auto_approved',
-          origin: null,
-          agentName: null,
-          matchedPattern: null,
-        })
-
-        expect(peon.send).not.toHaveBeenCalledWith(expect.objectContaining({ hook_event_name: 'PreToolUse' }))
-      })
-    })
-
-    it('maps an allow decision to PreToolUse with the surface as tool_name', async () => {
-      const { handlers, peon, extraHandlers } = setup()
-      const cwd = '/startup/project'
-      const session = 'startup-session'
-      const ctx = makeCtx({ cwd, session: `/sessions/${session}.json` })
-      await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, ctx)
-
-      emitExtraEvent(extraHandlers, PERMISSIONS_DECISION_CHANNEL, {
-        surface: 'bash',
-        value: 'ls -la',
-        result: 'allow',
-        resolution: 'user_approved',
-        origin: 'session',
-        agentName: null,
-        matchedPattern: null,
-      })
-
-      expect(peon.send).toHaveBeenLastCalledWith({
-        hook_event_name: 'PreToolUse',
-        tool_name: 'bash',
-        session_id: `pi-${session}`,
-        cwd,
-      })
-    })
-
-    it('skips deny decisions', async () => {
-      const { handlers, peon, extraHandlers } = setup()
-      const ctx = makeCtx({ cwd: '/startup/project', session: '/sessions/startup-session.json' })
-      await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, ctx)
-
-      emitExtraEvent(extraHandlers, PERMISSIONS_DECISION_CHANNEL, {
-        surface: 'bash',
-        value: 'rm -rf /',
-        result: 'deny',
-        resolution: 'user_denied',
-        origin: null,
-        agentName: null,
-        matchedPattern: null,
-      })
-
-      expect(peon.send).not.toHaveBeenCalledWith(expect.objectContaining({ hook_event_name: 'PreToolUse' }))
-    })
-
-    describe('skips on invalid decision data', () => {
-      it.each([
-        undefined,
-        null,
-        { surface: 'bash' },
-        { result: 'allow' },
-        { surface: 'bash', result: 'maybe' },
-        { surface: 123, result: 'allow' },
-        { foo: 42 },
-      ])('%j', (garbageData) => {
-        const { peon, extraHandlers } = setup()
-
-        emitExtraEvent(extraHandlers, PERMISSIONS_DECISION_CHANNEL, garbageData)
-
-        expect(peon.send).not.toHaveBeenCalled()
-      })
-    })
-  })
-
   describe('when a session_before_compact event fires', () => {
     it('maps event to PreCompact', async () => {
       const { handlers, peon } = setup()
@@ -377,10 +278,100 @@ describe('registerPiHandlers', () => {
     })
 
     describe('skips on missing surface in the given data', () => {
-      it.each([undefined, { surface: undefined }, { surface: 123 }, { foo: 42 }, null])('%j', (garbageData) => {
+      it.each([
+        undefined,
+        { surface: undefined },
+        { surface: null },
+        { surface: 123 },
+        { surface: '' },
+        { foo: 42 },
+        null,
+      ])('%j', (garbageData) => {
         const { peon, extraHandlers } = setup()
 
         emitExtraEvent(extraHandlers, PERMISSIONS_UI_PROMPT_CHANNEL, garbageData)
+
+        expect(peon.send).not.toHaveBeenCalled()
+      })
+    })
+  })
+
+  describe('when a permissions:decision event fires from the optional pi-permissions extension', () => {
+    const eventPrototype = {
+      surface: 'bash',
+      value: 'ls',
+      result: 'allow',
+      resolution: 'auto_approved',
+      origin: null,
+      agentName: null,
+      matchedPattern: null,
+    } satisfies PermissionDecisionEvent
+
+    describe('skips when no session context is remembered', () => {
+      it('before any session_start has fired', () => {
+        const { peon, extraHandlers } = setup()
+        const event: PermissionDecisionEvent = eventPrototype
+
+        emitExtraEvent(extraHandlers, PERMISSIONS_DECISION_CHANNEL, event)
+
+        expect(peon.send).not.toHaveBeenCalled()
+      })
+
+      it('after session_shutdown has cleared the remembered context', async () => {
+        const { handlers, peon, extraHandlers } = setup()
+        const ctx = makeCtx({ cwd: '/shutdown/project', session: '/sessions/shutdown-session.json' })
+        await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, ctx)
+        await emit(handlers, 'session_shutdown', { type: 'session_shutdown', reason: 'quit' }, ctx)
+        const event: PermissionDecisionEvent = eventPrototype
+
+        emitExtraEvent(extraHandlers, PERMISSIONS_DECISION_CHANNEL, event)
+
+        expect(peon.send).not.toHaveBeenCalledWith(expect.objectContaining({ hook_event_name: 'PreToolUse' }))
+      })
+    })
+
+    it('maps an allow decision to PreToolUse with the surface as tool_name', async () => {
+      const { handlers, peon, extraHandlers } = setup()
+      const cwd = '/startup/project'
+      const session = 'startup-session'
+      const ctx = makeCtx({ cwd, session: `/sessions/${session}.json` })
+      await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, ctx)
+      const event: PermissionDecisionEvent = { ...eventPrototype, result: 'allow' }
+
+      emitExtraEvent(extraHandlers, PERMISSIONS_DECISION_CHANNEL, event)
+
+      expect(peon.send).toHaveBeenLastCalledWith({
+        hook_event_name: 'PreToolUse',
+        tool_name: 'bash',
+        session_id: `pi-${session}`,
+        cwd,
+      })
+    })
+
+    it('skips deny decisions', async () => {
+      const { handlers, peon, extraHandlers } = setup()
+      const ctx = makeCtx({ cwd: '/startup/project', session: '/sessions/startup-session.json' })
+      await emit(handlers, 'session_start', { type: 'session_start', reason: 'startup' }, ctx)
+      const event: PermissionDecisionEvent = { ...eventPrototype, result: 'deny' }
+
+      emitExtraEvent(extraHandlers, PERMISSIONS_DECISION_CHANNEL, event)
+
+      expect(peon.send).not.toHaveBeenCalledWith(expect.objectContaining({ hook_event_name: 'PreToolUse' }))
+    })
+
+    describe('skips on invalid decision data', () => {
+      it.each([
+        undefined,
+        null,
+        { surface: 'bash' },
+        { result: 'allow' },
+        { surface: 'bash', result: 'maybe' },
+        { surface: 123, result: 'allow' },
+        { foo: 42 },
+      ])('%j', (garbageData) => {
+        const { peon, extraHandlers } = setup()
+
+        emitExtraEvent(extraHandlers, PERMISSIONS_DECISION_CHANNEL, garbageData)
 
         expect(peon.send).not.toHaveBeenCalled()
       })
