@@ -6,7 +6,7 @@ import { rememberEnv, type RememberedEnv } from './helpers/env'
 import { createCaptureExecutable } from './helpers/executable'
 import { emit, emitExtraEvent, makeCtx, makePi } from './helpers/fake-pi'
 import { createTempDirectory, type TempDirectory } from './helpers/temp-directory'
-import { PERMISSIONS_DECISION_CHANNEL, PERMISSIONS_UI_PROMPT_CHANNEL } from '../src/types'
+import { PERMISSIONS_DECISION_CHANNEL, PERMISSIONS_UI_PROMPT_CHANNEL } from '@gotgenes/pi-permission-system'
 
 let tempDirectory: TempDirectory
 let env: RememberedEnv

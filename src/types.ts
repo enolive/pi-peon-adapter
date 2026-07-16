@@ -1,4 +1,3 @@
-export { PERMISSIONS_DECISION_CHANNEL, PERMISSIONS_UI_PROMPT_CHANNEL } from '@gotgenes/pi-permission-system'
 export type { PermissionDecisionEvent, PermissionUiPromptEvent } from '@gotgenes/pi-permission-system'
 
 export type HookEvent =

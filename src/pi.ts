@@ -7,8 +7,6 @@ import {
   type PeonSink,
   type PermissionDecisionEvent,
   type PermissionUiPromptEvent,
-  PERMISSIONS_DECISION_CHANNEL,
-  PERMISSIONS_UI_PROMPT_CHANNEL,
 } from './types'
 
 export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon: PeonSink): void {
@@ -85,7 +83,7 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon
     remembered = undefined
   })
 
-  pi.events.on(PERMISSIONS_UI_PROMPT_CHANNEL, (data) => {
+  pi.events.on('permissions:ui_prompt', (data) => {
     logReceived('permission_requested')
     if (!isPermissionUiPromptEvent(data)) {
       logSkip('permission_requested', undefined, 'invalid_data')
@@ -108,7 +106,7 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon
     peon.send(payload)
   })
 
-  pi.events.on(PERMISSIONS_DECISION_CHANNEL, (data) => {
+  pi.events.on('permissions:decision', (data) => {
     logReceived('permission_decision')
     if (!isPermissionDecisionEvent(data)) {
       logSkip('permission_decision', undefined, 'invalid_data')

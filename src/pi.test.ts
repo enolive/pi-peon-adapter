@@ -10,7 +10,7 @@ import { emit, emitExtraEvent, makeCtx, makePi } from '../test/helpers/fake-pi'
 import type { ToolExecutionEndEvent } from '../test/helpers/fake-pi'
 import { makePeon } from '../test/helpers/fake-peon'
 import { extractSessionName, registerPiHandlers } from './pi'
-import { PERMISSIONS_DECISION_CHANNEL, PERMISSIONS_UI_PROMPT_CHANNEL } from './types'
+import { PERMISSIONS_DECISION_CHANNEL, PERMISSIONS_UI_PROMPT_CHANNEL } from '@gotgenes/pi-permission-system'
 import type { PermissionDecisionEvent } from '@gotgenes/pi-permission-system'
 
 const randomUUID = vi.hoisted(() => vi.fn<() => `${string}-${string}-${string}-${string}-${string}`>())
