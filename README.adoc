@@ -142,7 +142,7 @@ tail -f /tmp/pi-peon-debug.log
 | `PreToolUse`
 | —
 | 🔇
-| Sourced from the permission system's decision channel; `tool_name` carries the decision's `surface`. Only `result=allow` decisions are forwarded; deny decisions are skipped. PeonPing plays no sound, but will remove "needs aproval" in compatible terminals.
+| Sourced from the permission system's decision channel; `tool_name` carries the decision's `surface`. Only `result=allow` decisions are forwarded; deny decisions are skipped. PeonPing plays no sound, but will remove "needs approval" in compatible terminals.
 |===
 
 Every payload includes `cwd` and a `session_id` prefixed with `pi-`.

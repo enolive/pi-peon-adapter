@@ -7,7 +7,6 @@ type Handler<TEvent extends EventName> = (event: EventFor<TEvent>, ctx: Extensio
 
 // WORKAROUND: see https://github.com/earendil-works/pi/issues/6687.
 export type ToolExecutionEndEvent = EventFor<'tool_execution_end'>
-export type ToolExecutionStartEvent = EventFor<'tool_execution_start'>
 type HandlerMap = Partial<{
   [TEvent in EventName]: Handler<TEvent>
 }>
