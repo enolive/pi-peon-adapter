@@ -12,8 +12,8 @@ export type HookEvent =
 
 export interface HookPayload {
   hook_event_name: HookEvent
-  cwd?: string
-  session_id?: string
+  cwd: string
+  session_id: string
   source?: string
   tool_name?: string
   error?: string

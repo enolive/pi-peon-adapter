@@ -17,4 +17,22 @@ export default defineConfig([
       },
     },
   },
+  {
+    files: ['src/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@gotgenes/pi-permission-system',
+              message: 'Optional devDependency: only type imports are allowed in production code.',
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
 ])

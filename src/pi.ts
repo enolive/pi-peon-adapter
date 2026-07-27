@@ -10,8 +10,8 @@ import {
 } from './types'
 
 export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon: PeonSink): void {
-  // session_start captures the session id and cwd so the permission:ui_prompt
-  // handler (which has no ctx) can include them; session_shutdown clears it.
+  // session_start captures the session id and cwd so the eventbus handlers
+  // (which have no ctx) can include them; session_shutdown clears it.
   let remembered: { sessionId: string; cwd: string } | undefined
 
   pi.on('session_start', (event, ctx) => {
@@ -24,14 +24,14 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon
       logSkip(event.type, ctx.cwd, event.reason)
       return
     }
-    const session_id = sessionIdFor(ctx)
-    remembered = { sessionId: session_id, cwd: ctx.cwd }
-    peon.send({
-      hook_event_name: 'SessionStart',
-      session_id,
-      cwd: ctx.cwd,
-      source: event.reason === 'resume' ? 'resume' : 'startup',
-    })
+    // PeonPing uses 'resume' to prevent soundpack re-rolling. everything else is not interesting and will be mapped to 'startup'
+    const source = event.reason === 'resume' ? 'resume' : 'startup'
+    const payload: HookPayload = {
+      ...basePayload(ctx, 'SessionStart'),
+      source,
+    }
+    remembered = { sessionId: payload.session_id, cwd: payload.cwd }
+    peon.send(payload)
   })
 
   pi.on('input', (event, ctx) => {

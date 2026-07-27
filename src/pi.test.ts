@@ -10,10 +10,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { emit, emitExtraEvent, makeCtx, makePi } from '../test/helpers/fake-pi'
 import { makePeon } from '../test/helpers/fake-peon'
 import { extractSessionName, registerPiHandlers } from './pi'
-import { PERMISSIONS_DECISION_CHANNEL, PERMISSIONS_UI_PROMPT_CHANNEL } from '@gotgenes/pi-permission-system'
 import type { PermissionDecisionEvent } from '@gotgenes/pi-permission-system'
+import { PERMISSIONS_DECISION_CHANNEL, PERMISSIONS_UI_PROMPT_CHANNEL } from '@gotgenes/pi-permission-system'
+import type { UUID } from 'node:crypto'
 
-const randomUUID = vi.hoisted(() => vi.fn<() => `${string}-${string}-${string}-${string}-${string}`>())
+const randomUUID = vi.hoisted(() => vi.fn<() => UUID>())
 
 vi.mock('node:crypto', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:crypto')>()
@@ -44,8 +45,13 @@ describe('registerPiHandlers', () => {
 
   describe('when a session_start event fires', () => {
     describe('maps event to SessionStart with reason', () => {
-      const reasons = ['startup', 'resume'] as const
-      it.each(reasons)('%s', async (reason) => {
+      type ValidReason = 'startup' | 'resume' | 'new'
+      type TestCase = [ValidReason, string]
+      it.each([
+        ['startup', 'startup'],
+        ['resume', 'resume'],
+        ['new', 'startup'],
+      ] satisfies TestCase[])('%s', async (reason, expectedSource) => {
         const { handlers, peon } = setup()
         const cwd = '/startup/project'
         const session = 'startup-session'
@@ -61,7 +67,7 @@ describe('registerPiHandlers', () => {
           hook_event_name: 'SessionStart',
           session_id: `pi-${session}`,
           cwd,
-          source: reason,
+          source: expectedSource,
         })
       })
     })
@@ -406,14 +412,14 @@ describe('registerPiHandlers', () => {
 
     describe('uses a pi-prefixed fallback session id when no valid session file exists', () => {
       it.each([undefined, '', '/just/a/path/', '////'])('%s -> %s', async (sessionFile) => {
+        const fakeUuid = '6891bef7-828d-4f8b-b7b7-b26d49612eb3'
+        randomUUID.mockReturnValue(fakeUuid)
         const { handlers, peon } = setup()
         const ctx = makeCtx({ cwd: '/work/project', session: sessionFile })
 
         await emit(handlers, 'agent_settled', { type: 'agent_settled' }, ctx)
 
-        expect(peon.send).toHaveBeenCalledWith(
-          expect.objectContaining({ session_id: 'pi-00000000-0000-4000-8000-000000000000' }),
-        )
+        expect(peon.send).toHaveBeenCalledWith(expect.objectContaining({ session_id: `pi-${fakeUuid}` }))
       })
     })
   })
