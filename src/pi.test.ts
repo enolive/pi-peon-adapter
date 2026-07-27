@@ -4,10 +4,10 @@ import type {
   SessionBeforeCompactEvent,
   SessionShutdownEvent,
   SessionStartEvent,
+  ToolExecutionEndEvent,
 } from '@earendil-works/pi-coding-agent'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { emit, emitExtraEvent, makeCtx, makePi } from '../test/helpers/fake-pi'
-import type { ToolExecutionEndEvent } from '../test/helpers/fake-pi'
 import { makePeon } from '../test/helpers/fake-peon'
 import { extractSessionName, registerPiHandlers } from './pi'
 import { PERMISSIONS_DECISION_CHANNEL, PERMISSIONS_UI_PROMPT_CHANNEL } from '@gotgenes/pi-permission-system'

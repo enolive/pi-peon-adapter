@@ -5,8 +5,6 @@ type EventName = ExtensionEvent['type']
 type EventFor<TEvent extends EventName> = Extract<ExtensionEvent, { type: TEvent }>
 type Handler<TEvent extends EventName> = (event: EventFor<TEvent>, ctx: ExtensionContext) => void | Promise<void>
 
-// WORKAROUND: see https://github.com/earendil-works/pi/issues/6687.
-export type ToolExecutionEndEvent = EventFor<'tool_execution_end'>
 type HandlerMap = Partial<{
   [TEvent in EventName]: Handler<TEvent>
 }>

@@ -45,9 +45,9 @@
     "semver": "^7.0.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.80.7",
+    "@earendil-works/pi-coding-agent": "^0.82.1",
     "@eslint/js": "^10.0.0",
-    "@gotgenes/pi-permission-system": "^20.7.3",
+    "@gotgenes/pi-permission-system": "^20.10.0",
     "@types/node": "^22.0.0",
     "@types/semver": "^7.0.0",
     "@vitest/coverage-v8": "^4.1.10",
