@@ -72,3 +72,7 @@ automated by CI.
 Published files are controlled by `.npmignore` (npm uses its default ignores plus any rules listed there). Test files are excluded automatically.
 
 Runtime dependencies belong in `dependencies`; development-only tools belong in `devDependencies`. Pi-provided packages such as `@earendil-works/pi-coding-agent` should stay in `peerDependencies` with a `"*"` range.
+
+## References
+
+see `NOTES.adoc` for open or deliberately withdrawn work.
