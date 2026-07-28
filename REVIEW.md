@@ -54,6 +54,14 @@ Tests: direct `extractSessionName` unit tests covering POSIX forward-slash, Wind
 
 **Research (pi docs + issue tracker):** `VERSION` is a sanctioned top-level export (`config.js:395`; pi's own `examples/extensions/custom-header.ts` imports it). `agent_settled` was added in response to pi issue [#2110](https://github.com/earendil-works/pi/issues/2110) — external validation that #1's `agent_end` → `agent_settled` swap matches the maintainers' own conclusion. A versioned `peerDependencies` range cannot work: pi issue [#4907](https://github.com/earendil-works/pi/issues/4907) documents `pi update` breaking with `ERESOLVE` because an extension declared a versioned peer; pi's `--legacy-peer-deps` fix was the direct response, and the loader injects only pi-bundled packages as virtual modules. The version comparison itself uses `semver` (a runtime `dependency`, not a peer) — see the project narrative below.
 
+### 7. `stdin` `'error'` listener prevents EPIPE crash
+
+**Status:** Done — in working tree on `permission-events` (uncommitted).
+
+**What shipped:** `child.stdin?.on('error', …)` in `src/peon.ts`, logging at `decision: 'stdin_async_error'`. Test in `src/peon.test.ts`: emits `'error'` on `child.stdin` after `peon.send()` and asserts no throw — proves a listener is wired (the entire fix; the contract is "EventEmitter throws on `emit('error')` with zero listeners").
+
+**Rationale:** `child.on('error')` covers the `ChildProcess`, not `child.stdin` (a separate EventEmitter). If peon exits before draining stdin, libuv's async flush hits the closed read end → `EPIPE` emitted on `child.stdin` → with no listener, Node throws → uncaught → pi crashes. The existing `try/catch` around `write`/`end` only catches synchronous throws; the existing `swallows stdin write errors` test only mocked a sync throw, giving false confidence. Reproduced the real async crash out-of-band (write buffered while pipe open, read end closes after → exit 42); the unit test drives the same contract synchronously, since EventEmitter throws on `emit('error')` regardless of who calls it.
+
 ---
 
 ## Withdrawn
@@ -78,7 +86,6 @@ The following were intentionally omitted as researched-and-closed or deliberate 
 
 Found in a later review pass; not blocking, not yet acted on.
 
-- **Unhandled `stdin` stream `'error'`** (`src/peon.ts`): `child.on('error')` covers the `ChildProcess`, not `child.stdin`. If peon exits before draining its stdin, the next pipe write emits `EPIPE` on `child.stdin` with no listener → uncaught exception → pi crashes. The try/catch around `write`/`end` only catches synchronous throws. Fix: add `child.stdin?.on('error', …)`. The existing `swallows stdin write errors` test gives false confidence — it only mocks a synchronous throw.
-- **No `unref()` on the child or kill timers**: each `dispatchPeonEvent` keeps a child handle + two timers (5s SIGTERM, +1s SIGKILL) referenced for up to ~6s. `session_shutdown` is the ironic case — the "pi is quitting" event arms the thing that delays the quit. `unref()` doesn't break interaction (only the keep-loop-alive bit); fix is to unref the child + both timers. Prerequisite: land the stdin error listener first, since faster exit makes pipe-closed errors more likely. Open question whether to unref on `session_shutdown` only (sound events stay referenced) or everywhere (snappy exit, may cut off the last sound).
+- **No `unref()` on the child or kill timers**: each `dispatchPeonEvent` keeps a child handle + two timers (5s SIGTERM, +1s SIGKILL) referenced for up to ~6s. `session_shutdown` is the ironic case — the "pi is quitting" event arms the thing that delays the quit. `unref()` doesn't break interaction (only the keep-loop-alive bit); fix is to unref the child + both timers. The stdin-error listener prerequisite (see #7 above) is now satisfied. Open question whether to unref on `session_shutdown` only (sound events stay referenced) or everywhere (snappy exit, may cut off the last sound).
 - **`input` forwards `source: 'extension'` as `UserPromptSubmit`**: programmatic extension messages are not user submissions, and may trip peon's spam detection during agent runs. `rpc` (ACP/IDE) and `steer`/`followUp` (mid-stream user input) are genuine — keep those. Revisit if `extension`-source input is observed spamming; narrow to `source === 'interactive'` then.
 - **`session_before_compact` ignores `willRetry`**: overflow-recovery compactions retry the turn and each one sounds `resource.limit`, so a single turn can burst. Trivial guard: skip when `event.willRetry` (the retried turn produces its own `Stop` sound).
