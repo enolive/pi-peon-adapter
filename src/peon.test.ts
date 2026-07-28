@@ -250,6 +250,17 @@ describe('createPeonSink', () => {
 
     expect(() => peon.send(payload)).not.toThrow()
   })
+
+  it('swallows async stdin errors (EPIPE when peon exits before draining)', () => {
+    const child = makeChildProcess()
+    vi.mocked(spawn).mockReturnValue(child.process)
+    const peon = createPeonSink('/bin/peon')
+
+    peon.send(payload)
+
+    const emitErrorOnStdin = () => child.process.stdin?.emit('error', new Error('write EPIPE'))
+    expect(emitErrorOnStdin).not.toThrow()
+  })
 })
 
 function makeChildProcess() {

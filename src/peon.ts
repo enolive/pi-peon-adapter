@@ -99,11 +99,20 @@ function dispatchPeonEvent(peonPath: string, payload: HookPayload): void {
     })
   })
 
+  // EPIPE arrives asynchronously on child.stdin when peon exits before draining.
+  // Without a listener, EventEmitter throws on emit -> uncaught -> host crash.
+  child.stdin?.on('error', (error) => {
+    logPeonEvent('error', peonPath, payload, {
+      decision: 'stdin_async_error',
+      error: getErrorMessage(error),
+    })
+  })
+
   try {
     child.stdin?.write(JSON.stringify(payload))
   } catch (error) {
     logPeonEvent('error', peonPath, payload, {
-      decision: 'stdin_write_error',
+      decision: 'stdin_sync_error',
       error: getErrorMessage(error),
     })
   }

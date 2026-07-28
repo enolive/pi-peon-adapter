@@ -4,7 +4,9 @@ exports[`pi peon adapter integration > writes debug log lines for received event
 "<timestamp> [info] hook=session_start phase=received cwd=/integration/project reason=startup has_ui=true
 <timestamp> [info] peon_path=<peon> event=SessionStart decision=send cwd=/integration/project session_id=pi-default-session
 <timestamp> [info] hook=tool_execution_end phase=received cwd=/integration/project tool=read is_error=true
-<timestamp> [warn] hook=tool_execution_end decision=skip reason=non_bash_tool cwd=/integration/project tool=read
+<timestamp> [warn] hook=tool_execution_end phase=skip reason=non_bash_tool cwd=/integration/project tool=read
+<timestamp> [info] hook=permission_requested phase=received
+<timestamp> [info] peon_path=<peon> event=PermissionRequest decision=send cwd=/integration/project session_id=pi-default-session
 <timestamp> [info] hook=tool_execution_end phase=received cwd=/integration/project tool=bash is_error=true
 <timestamp> [info] peon_path=<peon> event=PostToolUseFailure decision=send cwd=/integration/project session_id=pi-default-session
 "
@@ -27,6 +29,18 @@ exports[`pi peon adapter integration > writes default session payloads to the re
     "cwd": "/integration/project",
     "hook_event_name": "Stop",
     "session_id": "pi-default-session",
+  },
+  {
+    "cwd": "/integration/project",
+    "hook_event_name": "PermissionRequest",
+    "session_id": "pi-default-session",
+    "tool_name": "bash",
+  },
+  {
+    "cwd": "/integration/project",
+    "hook_event_name": "PreToolUse",
+    "session_id": "pi-default-session",
+    "tool_name": "bash",
   },
   {
     "cwd": "/integration/project",
