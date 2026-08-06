@@ -1,4 +1,5 @@
 import type {
+  AgentEndEvent,
   AgentSettledEvent,
   InputEvent,
   SessionBeforeCompactEvent,
@@ -32,9 +33,10 @@ describe('registerPiHandlers', () => {
   it('registers all expected handlers', () => {
     const { on, eventsOn } = setup()
 
-    expect(on).toHaveBeenCalledTimes(6)
+    expect(on).toHaveBeenCalledTimes(7)
     expect(on).toHaveBeenCalledWith('session_start', expect.any(Function))
     expect(on).toHaveBeenCalledWith('input', expect.any(Function))
+    expect(on).toHaveBeenCalledWith('agent_end', expect.any(Function))
     expect(on).toHaveBeenCalledWith('agent_settled', expect.any(Function))
     expect(on).toHaveBeenCalledWith('tool_execution_end', expect.any(Function))
     expect(on).toHaveBeenCalledWith('session_before_compact', expect.any(Function))
@@ -135,7 +137,55 @@ describe('registerPiHandlers', () => {
   })
 
   describe('when an agent_settled event fires', () => {
-    it('maps event to Stop', async () => {
+    it('maps event to Stop after a successful run', async () => {
+      const { handlers, peon } = setup()
+      const cwd = '/agent-end/project'
+      const session = 'agent-end-session'
+      const ctx = makeCtx({
+        cwd,
+        session: `/sessions/${session}.json`,
+      })
+      const agentEnd: AgentEndEvent = { type: 'agent_end', messages: [makeAgentMessage()] }
+      await emit(handlers, 'agent_end', agentEnd, ctx)
+      const event: AgentSettledEvent = { type: 'agent_settled' }
+
+      await emit(handlers, 'agent_settled', event, ctx)
+
+      expect(peon.send).toHaveBeenLastCalledWith({
+        hook_event_name: 'Stop',
+        session_id: `pi-${session}`,
+        cwd,
+      })
+    })
+
+    it('maps event to PostToolUseFailure when the run ended on an error', async () => {
+      const { handlers, peon } = setup()
+      const cwd = '/agent-end/project'
+      const session = 'agent-end-session'
+      const ctx = makeCtx({
+        cwd,
+        session: `/sessions/${session}.json`,
+      })
+      const errorMessage = 'OpenAI API error (429): Too many requests.'
+      const agentEnd: AgentEndEvent = {
+        type: 'agent_end',
+        messages: [makeAgentMessage({ stopReason: 'error', errorMessage })],
+      }
+      await emit(handlers, 'agent_end', agentEnd, ctx)
+      const event: AgentSettledEvent = { type: 'agent_settled' }
+
+      await emit(handlers, 'agent_settled', event, ctx)
+
+      expect(peon.send).toHaveBeenLastCalledWith({
+        hook_event_name: 'PostToolUseFailure',
+        session_id: `pi-${session}`,
+        cwd,
+        tool_name: 'Bash',
+        error: 'agent failed',
+      })
+    })
+
+    it('maps event to Stop when no agent_end has fired', async () => {
       const { handlers, peon } = setup()
       const cwd = '/agent-end/project'
       const session = 'agent-end-session'
@@ -147,11 +197,74 @@ describe('registerPiHandlers', () => {
 
       await emit(handlers, 'agent_settled', event, ctx)
 
-      expect(peon.send).toHaveBeenCalledWith({
+      expect(peon.send).toHaveBeenLastCalledWith({
         hook_event_name: 'Stop',
         session_id: `pi-${session}`,
         cwd,
       })
+    })
+
+    it('maps event to Stop when the last agent_end had no error', async () => {
+      const { handlers, peon } = setup()
+      const ctx = makeCtx({ cwd: '/agent-end/project', session: '/sessions/agent-end-session.json' })
+      // An earlier run ended on an error, then a later run completed normally.
+      await emit(
+        handlers,
+        'agent_end',
+        { type: 'agent_end', messages: [makeAgentMessage({ stopReason: 'error' })] },
+        ctx,
+      )
+      await emit(
+        handlers,
+        'agent_end',
+        { type: 'agent_end', messages: [makeAgentMessage({ stopReason: 'stop' })] },
+        ctx,
+      )
+
+      await emit(handlers, 'agent_settled', { type: 'agent_settled' }, ctx)
+
+      expect(peon.send).toHaveBeenLastCalledWith(expect.objectContaining({ hook_event_name: 'Stop' }))
+    })
+
+    it('maps event to Stop when the last agent_end does not come from the assistant', async () => {
+      const { handlers, peon } = setup()
+      const ctx = makeCtx({ cwd: '/agent-end/project', session: '/sessions/agent-end-session.json' })
+      // An earlier run ended on an error, then a later run completed normally.
+      await emit(
+        handlers,
+        'agent_end',
+        { type: 'agent_end', messages: [makeAgentMessage({ stopReason: 'error' })] },
+        ctx,
+      )
+      await emit(
+        handlers,
+        'agent_end',
+        { type: 'agent_end', messages: [makeAgentMessage({ role: 'user', stopReason: 'error' })] },
+        ctx,
+      )
+
+      await emit(handlers, 'agent_settled', { type: 'agent_settled' }, ctx)
+
+      expect(peon.send).toHaveBeenLastCalledWith(expect.objectContaining({ hook_event_name: 'Stop' }))
+    })
+
+    it('ignores an agent_end error from a different session', async () => {
+      const { handlers, peon } = setup()
+      const otherCtx = makeCtx({ cwd: '/other/project', session: '/sessions/other-session.json' })
+      const ctx = makeCtx({ cwd: '/agent-end/project', session: '/sessions/agent-end-session.json' })
+      // A run in another session ended on an error, then this session settles.
+      await emit(
+        handlers,
+        'agent_end',
+        { type: 'agent_end', messages: [makeAgentMessage({ stopReason: 'error' })] },
+        otherCtx,
+      )
+
+      await emit(handlers, 'agent_settled', { type: 'agent_settled' }, ctx)
+
+      expect(peon.send).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hook_event_name: 'Stop', session_id: 'pi-agent-end-session' }),
+      )
     })
   })
 
@@ -442,6 +555,31 @@ describe('extractSessionName', () => {
     expect(extractSessionName(sessionFile)).toBeUndefined()
   })
 })
+
+function makeAgentMessage(
+  overrides: { role?: 'assistant' | 'user'; stopReason?: 'stop' | 'error'; errorMessage?: string } = {
+    role: 'assistant',
+  },
+) {
+  return {
+    role: overrides.role ?? 'assistant',
+    content: [],
+    api: 'openai' as const,
+    provider: 'openai' as const,
+    model: 'gpt-4',
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: overrides.stopReason ?? 'stop',
+    errorMessage: overrides.errorMessage,
+    timestamp: 0,
+  }
+}
 
 function setup() {
   const fakePi = makePi()

@@ -11,7 +11,6 @@ Do not turn it into yet another _spec-driven framework to rule them all_
 The following were intentionally omitted as researched-and-closed or deliberate wontfixes:
 
 - **Shutdown-time delivery** — fire-and-forget survives parent exit in practice.
-- **Broadening `tool_execution_end` beyond `bash`** — PeonPing reserves `task.error` for command failures.
 - **Forwarding the real error text** — `peon.sh:5655` uses the `error` field only as a truthiness gate (`if error_msg and tool_name == 'Bash'`); the hardcoded `'bash failed'` is correct and avoids a falsy-result suppression bug.
 - **Verifying `tool_name: 'Bash'`** — `peon.sh:5655` explicitly checks `tool_name == 'Bash'`; the existing test already pins the value.
 - **No concurrency / backpressure in `send`:** only fires on failed `bash` executions plus session lifecycle events.
@@ -30,6 +29,20 @@ The right fix is PeonPing documenting its mapping clearly — not something the 
 `session_start` would silently suppress failures that occur before the first event.
 Other extensions and pi samples also use `console.warn`.
 This is a pi ecosystem limitation, not solvable by the adapter.
+
+'''
+
+== Design notes
+
+Rationale for non-obvious event-mapping choices; the README keeps the mapping table short.
+
+- **Agent errors route through `PostToolUseFailure`** — PeonPing has no dedicated agent-error event; its `task.error` category is only reachable via `PostToolUseFailure` with `tool_name='Bash'` and a truthy `error` (see `peon.sh`). Funneling agent errors this way is the de-facto convention across PeonPing's own adapters (opencode, copilot, codex, rovodev, openclaw). When a pi run settles on an error (last assistant message `stopReason=error`, e.g. an upstream 429/5xx after retries), this adapter emits `PostToolUseFailure` with a fixed `error='agent failed'`. The `error` text is only a truthiness gate in PeonPing, so a fixed non-empty string is correct and avoids forwarding provider error payloads.
+
+- **Event-bus rows need `@gotgenes/pi-permission-system`** — The `permissions:ui_prompt` and `permissions:decision` channels carry no pi context, so `session_id` and `cwd` are reused from the most recent `session_start` captured by the adapter; if no `session_start` has fired yet (or after `session_shutdown`), the event is skipped rather than sent with a guessed `cwd` or `session_id`.
+
+- **`PreToolUse` is sourced from `permissions:decision`, not `tool_execution_*`** — Per pi's documented lifecycle, `tool_execution_start` is a _preflight_ event that fires *before* the `tool_call` gate (where the permission system runs), so it fires before the permission decision and even for tools that end up denied; `tool_execution_update` fires only for non-blocked calls, but multiple times with each update; `tool_execution_end` always fires (including on block, with `isError=true`). None of them mark "the tool is about to run" exactly once after a successful gate. `permissions:decision` with `result=allow` does, which is why it is the source for `PreToolUse`.
+
+- **Broadening `tool_execution_end` beyond `bash`** — PeonPing reserves `task.error` for command failures, so `tool_execution_end` stays scoped to `bash`.
 
 '''
 

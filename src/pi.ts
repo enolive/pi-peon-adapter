@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
+import type { AgentEndEvent, ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { randomUUID } from 'node:crypto'
 import { debugLogFields, type DebugLogLevel, type DebugLogValue } from './diagnostics'
 import {
@@ -13,6 +13,7 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon
   // session_start captures the session id and cwd so the eventbus handlers
   // (which have no ctx) can include them; session_shutdown clears it.
   let remembered: { sessionId: string; cwd: string } | undefined
+  let lastRun: { sessionId: string; endedOnError: boolean } | undefined
 
   pi.on('session_start', (event, ctx) => {
     logReceived(event.type, ctx.cwd, { reason: event.reason, has_ui: ctx.hasUI })
@@ -44,8 +45,32 @@ export function registerPiHandlers(pi: Pick<ExtensionAPI, 'on' | 'events'>, peon
     peon.send(payload)
   })
 
+  pi.on('agent_end', (event, ctx) => {
+    logReceived(event.type, ctx.cwd, { ended_on_error: lastRun?.endedOnError })
+    lastRun = { sessionId: sessionIdFor(ctx), endedOnError: runEndedOnError(event) }
+  })
+
   pi.on('agent_settled', (event, ctx) => {
-    logReceived(event.type, ctx.cwd)
+    const sessionId = sessionIdFor(ctx)
+    const endedOnError = lastRun?.sessionId === sessionId && lastRun.endedOnError
+    logReceived(event.type, ctx.cwd, { ended_on_error: endedOnError })
+    if (endedOnError) {
+      // PeonPing has no dedicated agent-error event: its task.error category is
+      // only reachable via PostToolUseFailure with tool_name='Bash' and a truthy
+      // error (peon.sh). Funneling agent errors through PostToolUseFailure is
+      // the de-facto convention across PeonPing's own adapters (opencode,
+      // copilot, codex, rovodev, openclaw). The error text is only a truthiness
+      // gate, so a fixed non-empty string is correct and avoids forwarding
+      // provider error payloads. See README for the full rationale.
+      const payload = {
+        ...basePayload(ctx, 'PostToolUseFailure'),
+        tool_name: 'Bash',
+        error: 'agent failed',
+      }
+      peon.send(payload)
+      lastRun = undefined
+      return
+    }
     const payload = basePayload(ctx, 'Stop')
     peon.send(payload)
   })
@@ -144,6 +169,16 @@ const isPermissionDecisionEvent = (data: unknown): data is PermissionDecisionEve
   }
   const obj = data as Record<string, unknown>
   return typeof obj.surface === 'string' && (obj.result === 'allow' || obj.result === 'deny')
+}
+
+/**
+ * Whether an agent_end run finished on an error. pi marks the final assistant
+ * message of a failed run with `stopReason: 'error'` (and an `errorMessage`),
+ * e.g. after retries are exhausted on an upstream 429/5xx. The last assistant
+ * message is what pi itself inspects in `_willRetryAfterAgentEnd`.
+ */
+function runEndedOnError(event: AgentEndEvent): boolean {
+  return event.messages.some((message) => message.role === 'assistant' && message.stopReason === 'error')
 }
 
 /**
