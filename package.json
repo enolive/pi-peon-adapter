@@ -45,13 +45,13 @@
     "semver": "^7.0.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.82.1",
+    "@earendil-works/pi-coding-agent": "^0.83.0",
     "@eslint/js": "^10.0.0",
-    "@gotgenes/pi-permission-system": "^20.10.0",
-    "@types/node": "^22.0.0",
+    "@gotgenes/pi-permission-system": "^24.0.0",
+    "@types/node": "~24.0.0",
     "@types/semver": "^7.0.0",
     "@vitest/coverage-v8": "^4.1.10",
-    "agnix": "^0.37.5",
+    "agnix": "^0.45.0",
     "downdoc": "^1.1.0-stable",
     "eslint": "^10.0.0",
     "globals": "^17.7.0",
